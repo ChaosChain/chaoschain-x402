@@ -18,7 +18,7 @@
 
 Verify & settle agent payments with **consensus proofs**, attach **ERC-8004 identity**, and run it yourself or use our managed endpoints.
 
-> **Note:** Currently runs in local development mode with CRE workflow. Real CRE DON deployment coming with public beta. API remains identical.
+> **Note:** Currently runs in local development mode with CRE workflow.
 
 **Key Features:**
 - ✅ **Byzantine Fault Tolerant consensus** - Multiple nodes verify every payment
