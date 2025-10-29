@@ -14,7 +14,9 @@ import {
 } from "./types";
 import { verifyPaymentManaged, settlePaymentManaged } from './managed/settlement';
 import { calculateFee } from './managed/fees';
-import { checkIdempotency, storeIdempotencyResponse, generateIdempotencyHash, rateLimitMiddleware } from './middleware';
+import { computeFeeBreakdown } from './managed/amounts';
+import { tryServeCachedResponse, storeResponseForIdempotency } from './middleware/idempotency';
+import { rateLimitMiddleware } from './middleware/rateLimit';
 import { linkAgentIdentity } from './chaoschain/identity';
 import { checkHealth } from './monitoring/health';
 import { startConfirmer } from './jobs/confirmer';
@@ -188,13 +190,15 @@ async function forwardSettleToCRE(request: SettleRequest): Promise<SettleRespons
  */
 server.get("/", async () => {
   return {
-    service: "ChaosChain x402 Decentralized Facilitator",
+    service: "ChaosChain x402 Facilitator",
     version: "0.1.0",
-    mode: config.creMode,
+    facilitatorMode: config.mode,
+    creMode: config.creMode,
     endpoints: {
       verify: "POST /verify",
       settle: "POST /settle",
       supported: "GET /supported",
+      health: "GET /health",
     },
     docs: "https://github.com/ChaosChain/chaoschain-x402",
   };
@@ -267,18 +271,23 @@ server.post<{ Body: VerifyRequest; Reply: VerifyResponse | ErrorResponse }>(
   },
   async (request, reply) => {
     try {
+      // Try to serve cached response first (idempotency)
+      if (await tryServeCachedResponse(request, reply)) return;
+
       // Validate request body
       const validatedRequest = VerifyRequestSchema.parse(request.body);
 
-      // Check idempotency
-      const cached = await checkIdempotency(request, reply);
-      if (cached && cached._conflict !== true) return;
-      if (cached?._conflict) return;
-
-      const requestId = `req_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+      // Create stable timestamp for this request (for idempotency consistency)
+      const stableTimestamp = Date.now();
+      const requestId = `req_${stableTimestamp}_${Math.random().toString(36).slice(2, 9)}`;
       
       server.log.info(`[VERIFY] Processing verification request`);
       server.log.info(`[VERIFY] Mode: ${config.mode}`);
+
+      // ALWAYS compute fee breakdown for transparency (even for invalid payments)
+      const feeBreakdown = await computeFeeBreakdown(
+        validatedRequest.paymentRequirements.maxAmountRequired
+      );
 
       let response: VerifyResponse;
 
@@ -286,53 +295,39 @@ server.post<{ Body: VerifyRequest; Reply: VerifyResponse | ErrorResponse }>(
         // MANAGED MODE: Real on-chain verification
         const verification = await verifyPaymentManaged(validatedRequest);
         
-        if (!verification.isValid) {
-          response = {
-            isValid: false,
-            invalidReason: verification.invalidReason,
-            consensusProof: null,
-            reportId: requestId,
-            timestamp: Date.now(),
-          };
-        } else {
-          // Calculate fee for this payment
-          const decimals = verification.decimals || 6;
-          const amount = parseUnits(validatedRequest.paymentRequirements.maxAmountRequired, decimals);
-          const feeCalc = await calculateFee(amount);
-
-          response = {
-            isValid: true,
-            invalidReason: null,
-            consensusProof: `0x${Buffer.from(requestId).toString('hex').padEnd(64, '0')}`,
-            reportId: requestId,
-            timestamp: Date.now(),
-            feeAmount: feeCalc.feeAmount.toString(),
-            netAmount: feeCalc.netAmount.toString(),
-            feeBps: feeCalc.feeBps,
-          };
-        }
+        response = {
+          isValid: verification.isValid,
+          invalidReason: verification.invalidReason,
+          consensusProof: verification.isValid 
+            ? `0x${Buffer.from(requestId).toString('hex').padEnd(64, '0')}`
+            : null,
+          reportId: requestId,
+          timestamp: stableTimestamp,
+          // Fee transparency: always present, even for invalid payments
+          amount: feeBreakdown.amount,
+          fee: feeBreakdown.fee,
+          net: feeBreakdown.net,
+        };
       } else {
         // DECENTRALIZED MODE: Use CRE workflow
-        response = config.creMode === "simulate"
+        const baseResponse = config.creMode === "simulate"
           ? simulateVerify(validatedRequest)
           : await forwardVerifyToCRE(validatedRequest);
-      }
-
-      // Store idempotency response
-      const idempotencyKey = request.headers['idempotency-key'] as string;
-      if (idempotencyKey) {
-        const paymentHeader = parsePaymentHeader(validatedRequest.paymentHeader);
-        const requestHash = generateIdempotencyHash(
-          "public",
-          '/verify',
-          validatedRequest,
-          paymentHeader.sender,
-          paymentHeader.nonce
-        );
-        await storeIdempotencyResponse(idempotencyKey, requestHash, response);
+        
+        // Add fee breakdown to CRE response
+        response = {
+          ...baseResponse,
+          timestamp: stableTimestamp,
+          amount: feeBreakdown.amount,
+          fee: feeBreakdown.fee,
+          net: feeBreakdown.net,
+        };
       }
 
       server.log.info(`[VERIFY] Result: ${response.isValid ? "VALID" : "INVALID"}`);
+
+      // Store response for idempotency BEFORE sending
+      await storeResponseForIdempotency(request, response);
 
       return reply.code(200).send(response);
     } catch (error) {
@@ -388,25 +383,30 @@ server.post<{ Body: SettleRequest; Reply: SettleResponse | ErrorResponse }>(
   },
   async (request, reply) => {
     try {
+      // Try to serve cached response first (idempotency)
+      if (await tryServeCachedResponse(request, reply)) return;
+
       // Validate request body
       const validatedRequest = SettleRequestSchema.parse(request.body);
 
-      // Check idempotency
-      const cached = await checkIdempotency(request, reply);
-      if (cached && cached._conflict !== true) return;
-      if (cached?._conflict) return;
-
-      const requestId = `req_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+      // Create stable timestamp for this request (for idempotency consistency)
+      const stableTimestamp = Date.now();
+      const requestId = `req_${stableTimestamp}_${Math.random().toString(36).slice(2, 9)}`;
 
       server.log.info(`[SETTLE] Processing settlement request`);
       server.log.info(`[SETTLE] Mode: ${config.mode}`);
+
+      // ALWAYS compute fee breakdown for transparency (even for failed settlements)
+      const feeBreakdown = await computeFeeBreakdown(
+        validatedRequest.paymentRequirements.maxAmountRequired
+      );
 
       let response: SettleResponse;
 
       if (config.mode === 'managed') {
         // MANAGED MODE: Real on-chain settlement with non-custodial transferFrom
         
-        // First verify and calculate fee
+        // First verify
         const verification = await verifyPaymentManaged(validatedRequest);
         if (!verification.isValid) {
           response = {
@@ -415,7 +415,11 @@ server.post<{ Body: SettleRequest; Reply: SettleResponse | ErrorResponse }>(
             txHash: null,
             networkId: validatedRequest.paymentRequirements.network,
             consensusProof: '',
-            timestamp: Date.now(),
+            timestamp: stableTimestamp,
+            // Fee transparency: always present, even for failed settlements
+            amount: feeBreakdown.amount,
+            fee: feeBreakdown.fee,
+            net: feeBreakdown.net,
           };
         } else {
           const decimals = verification.decimals || 6;
@@ -457,9 +461,11 @@ server.post<{ Body: SettleRequest; Reply: SettleResponse | ErrorResponse }>(
             txHashFee: settlement.txHashFee,
             networkId: validatedRequest.paymentRequirements.network,
             consensusProof: `0x${Buffer.from(settlement.txHash).toString('hex').slice(0, 64)}`,
-            timestamp: Date.now(),
-            feeAmount: feeCalc.feeAmount.toString(),
-            netAmount: feeCalc.netAmount.toString(),
+            timestamp: stableTimestamp,
+            // Fee transparency with both human and base units
+            amount: feeBreakdown.amount,
+            fee: feeBreakdown.fee,
+            net: feeBreakdown.net,
             status: settlement.status,
             evidenceHash,
             proofOfAgency,
@@ -467,26 +473,24 @@ server.post<{ Body: SettleRequest; Reply: SettleResponse | ErrorResponse }>(
         }
       } else {
         // DECENTRALIZED MODE: Use CRE workflow
-        response = config.creMode === "simulate"
+        const baseResponse = config.creMode === "simulate"
           ? simulateSettle(validatedRequest)
           : await forwardSettleToCRE(validatedRequest);
-      }
-
-      // Store idempotency response
-      const idempotencyKey = request.headers['idempotency-key'] as string;
-      if (idempotencyKey) {
-        const paymentHeader = parsePaymentHeader(validatedRequest.paymentHeader);
-        const requestHash = generateIdempotencyHash(
-          "public",
-          '/settle',
-          validatedRequest,
-          paymentHeader.sender,
-          paymentHeader.nonce
-        );
-        await storeIdempotencyResponse(idempotencyKey, requestHash, response);
+        
+        // Add fee breakdown and stable timestamp to CRE response
+        response = {
+          ...baseResponse,
+          timestamp: stableTimestamp,
+          amount: feeBreakdown.amount,
+          fee: feeBreakdown.fee,
+          net: feeBreakdown.net,
+        };
       }
 
       server.log.info(`[SETTLE] Result: ${response.success ? "SUCCESS" : "FAILED"}`);
+
+      // Store response for idempotency BEFORE sending
+      await storeResponseForIdempotency(request, response);
 
       return reply.code(200).send(response);
     } catch (error) {

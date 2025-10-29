@@ -160,13 +160,27 @@ ChaosChain provides a **production-ready managed facilitator** at `https://pay.c
 - **Fast settlement:** < 1 second (plus blockchain confirmation time)
 - **No gas fees:** Merchants don't pay gas, customers don't pay gas
 - **Universal compatibility:** If it speaks HTTP, it speaks x402
-- **Optional identity:** Link payments to ERC-8004 agents for reputation tracking
+- **Built-in identity:** Every payment automatically links to your ERC-8004 agent for reputation
+- **Full transparency:** All responses include both human-readable and base unit amounts
+
+### Amounts & Units
+
+All API responses include both **human** strings (e.g., `"1.00" USDC`) and **base** unit strings (e.g., `"1000000"` for 6-decimal tokens). Use whichever is convenient; settlement logic uses base units.
+
+**Example response:**
+```json
+{
+  "amount": { "human": "1.00", "base": "1000000", "symbol": "USDC", "decimals": 6 },
+  "fee": { "human": "0.01", "base": "10000", "bps": 100 },
+  "net": { "human": "0.99", "base": "990000" }
+}
+```
 
 ### Facilitator URL
 
 The ChaosChain facilitator URL is `https://pay.chaoscha.in`.
 
-**That's it. No signup, no API keys, no complexity.** Just like PayAI, but with optional ERC-8004 identity integration.
+**That's it. No signup, no API keys, no complexity.** Just like PayAI, but every payment automatically builds your agent's on-chain reputation via ERC-8004.
 
 ### Using the Managed Facilitator
 
@@ -253,8 +267,8 @@ ETHEREUM_SEPOLIA_RPC_URL=https://ethereum-sepolia.blockpi.network/v1/rpc/public
 # Hot Wallet
 FACILITATOR_PRIVATE_KEY=0xYourPrivateKey
 
-# Optional: ChaosChain ERC-8004 Integration
-CHAOSCHAIN_ENABLED=false
+# ChaosChain ERC-8004 Integration (automatic when using SDK)
+CHAOSCHAIN_ENABLED=true
 VALIDATION_REGISTRY_ADDRESS=0xRegistryAddress
 
 # Supabase (for transaction tracking)
@@ -317,7 +331,7 @@ External SDK integration specifications:
 | **Fees** | 1% flat fee | Gas only (if self-hosted) |
 | **Setup** | Zero - just use the URL | Requires CRE deployment |
 | **Support** | Community Discord | Community Discord |
-| **Identity (ERC-8004)** | Optional | Optional |
+| **Identity (ERC-8004)** | Automatic when using SDK | Automatic when using SDK |
 | **Best for** | Production apps, merchants | Maximum trust-minimization |
 
 **Recommendation:** Start with managed (`https://pay.chaoscha.in`) for immediate production use. It's production-ready, battle-tested, and just works.

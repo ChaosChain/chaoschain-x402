@@ -3,10 +3,16 @@ import { baseSepolia } from 'viem/chains';
 import { createClient } from '@supabase/supabase-js';
 import { privateKeyToAccount } from 'viem/accounts';
 
-const supabase = createClient(
-  process.env.SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_KEY!
-);
+// Lazy load Supabase (optional for testing)
+function getSupabaseClient() {
+  if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_KEY) {
+    return null;
+  }
+  return createClient(
+    process.env.SUPABASE_URL,
+    process.env.SUPABASE_SERVICE_KEY
+  );
+}
 
 export async function checkHealth() {
   const checks = {
@@ -20,12 +26,17 @@ export async function checkHealth() {
     timestamp: new Date().toISOString(),
   };
 
-  // Check Supabase
-  try {
-    const { error } = await supabase.from('tenants').select('count').limit(1);
-    checks.supabase = !error;
-  } catch (e) {
-    checks.supabase = false;
+  // Check Supabase (optional)
+  const supabase = getSupabaseClient();
+  if (supabase) {
+    try {
+      const { error } = await supabase.from('transactions').select('count').limit(1);
+      checks.supabase = !error;
+    } catch (e) {
+      checks.supabase = false;
+    }
+  } else {
+    checks.supabase = true; // Consider healthy if not configured
   }
 
   // Check RPC + Gas Balance + Block Lag

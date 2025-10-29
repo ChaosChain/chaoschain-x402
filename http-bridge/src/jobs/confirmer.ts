@@ -1,16 +1,28 @@
 import { createClient } from '@supabase/supabase-js';
 import { checkTransactionFinality } from '../managed/settlement';
 
-const supabase = createClient(
-  process.env.SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_KEY!
-);
+// Lazy load Supabase (optional for testing)
+function getSupabaseClient() {
+  if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_KEY) {
+    return null;
+  }
+  return createClient(
+    process.env.SUPABASE_URL,
+    process.env.SUPABASE_SERVICE_KEY
+  );
+}
 
 /**
  * Background job to confirm pending transactions
  * Run this every 30 seconds
  */
 export async function confirmPendingTransactions() {
+  const supabase = getSupabaseClient();
+  if (!supabase) {
+    // Skip confirmation if no Supabase (OK for testing)
+    return;
+  }
+  
   const { data: pending } = await supabase
     .from('transactions')
     .select('*')

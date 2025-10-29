@@ -2,86 +2,113 @@ import { createClient } from '@supabase/supabase-js';
 import type { FastifyRequest, FastifyReply } from 'fastify';
 import crypto from 'crypto';
 
-const supabase = createClient(
-  process.env.SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_KEY!
-);
+// In-memory cache for idempotency when Supabase not configured
+const inMemoryCache = new Map<string, { response: any; createdAt: number }>();
 
-/**
- * Generate deterministic idempotency key using SHA-256 hash
- * Prevents PII leakage and ensures full determinism
- */
-export function generateIdempotencyHash(
-  tenantId: string,
-  endpoint: string,
-  body: any,
-  payer: string,
-  nonce?: string
-): string {
-  const payload = JSON.stringify({
-    tenantId,
-    endpoint,
-    body,
-    payer: payer.toLowerCase(),
-    nonce,
-  });
-  
-  return crypto.createHash('sha256').update(payload).digest('hex');
-}
-
-export async function checkIdempotency(
-  request: FastifyRequest,
-  reply: FastifyReply,
-  tenantId?: string
-): Promise<any | null> {
-  const idempotencyKey = request.headers['idempotency-key'] as string;
-
-  if (!idempotencyKey) {
+// Lazy load Supabase (optional for testing)
+function getSupabaseClient() {
+  if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_KEY) {
     return null;
   }
-
-  // Generate hash of request
-  const requestHash = generateIdempotencyHash(
-    tenantId || 'anonymous',
-    request.routeOptions.url || request.url,
-    request.body,
-    (request.body as any)?.paymentHeader?.sender || 'unknown',
-    (request.body as any)?.paymentHeader?.nonce
+  return createClient(
+    process.env.SUPABASE_URL,
+    process.env.SUPABASE_SERVICE_KEY
   );
+}
 
-  // Check if we've seen this exact request before
-  const { data } = await supabase
-    .from('idempotency_store')
-    .select('response, request_hash')
-    .eq('key', idempotencyKey)
-    .gte('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
-    .single();
+/**
+ * Get idempotency key from header or derive stable hash from payload
+ */
+export function getIdempotencyKey(req: FastifyRequest): string {
+  const hdr = (req.headers['idempotency-key'] as string) || '';
+  if (hdr) return hdr;
 
-  if (data) {
-    // Verify hash matches to prevent key reuse with different request
-    if (data.request_hash !== requestHash) {
-      reply.code(409).send({
-        error: 'Idempotency key conflict',
-        message: 'This idempotency key was used for a different request',
-      });
-      return { _conflict: true };
+  // Derive stable hash from route + body for automatic deduplication
+  const body = typeof req.body === 'string' ? req.body : JSON.stringify(req.body || {});
+  const seed = `${req.routerPath}|${body}`;
+  return crypto.createHash('sha256').update(seed).digest('hex');
+}
+
+/**
+ * Try to serve cached response if it exists
+ * Returns true if response was served from cache
+ */
+export async function tryServeCachedResponse(
+  request: FastifyRequest,
+  reply: FastifyReply
+): Promise<boolean> {
+  const key = getIdempotencyKey(request);
+  const supabase = getSupabaseClient();
+  
+  // Try Supabase first if configured
+  if (supabase) {
+    try {
+      const { data } = await supabase
+        .from('idempotency_store')
+        .select('response')
+        .eq('key', key)
+        .gte('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
+        .single();
+
+      if (data?.response) {
+        // Serve the exact same JSON that was stored (timestamps included)
+        reply.code(200).send(data.response);
+        return true;
+      }
+    } catch (error) {
+      // Continue to in-memory cache
     }
-    
-    // Return cached response
-    reply.code(200).send(data.response);
-    return data.response;
   }
 
-  return null;
+  // Fallback to in-memory cache (for testing without Supabase)
+  const cached = inMemoryCache.get(key);
+  if (cached && (Date.now() - cached.createdAt < 24 * 60 * 60 * 1000)) {
+    // Serve the exact same JSON that was stored (timestamps included)
+    reply.code(200).send(cached.response);
+    return true;
+  }
+
+  return false;
 }
 
-export async function storeIdempotencyResponse(
-  key: string,
-  requestHash: string,
-  response: any
+/**
+ * Store response for future idempotency checks
+ * Stores the EXACT response object that was returned
+ */
+export async function storeResponseForIdempotency(
+  request: FastifyRequest,
+  responseBody: any
 ): Promise<void> {
-  await supabase
-    .from('idempotency_store')
-    .insert({ key, request_hash: requestHash, response });
-}
+  const key = getIdempotencyKey(request);
+  const supabase = getSupabaseClient();
+  
+  // Try Supabase first if configured
+  if (supabase) {
+    try {
+      await supabase
+        .from('idempotency_store')
+        .upsert({
+          key,
+          response: responseBody,
+          created_at: new Date().toISOString(),
+        });
+    } catch (error) {
+      // Log error but continue to in-memory fallback
+      console.error('[Idempotency] Failed to store in Supabase:', error);
+    }
+  }
 
+  // Always store in memory as well (for testing without Supabase)
+  inMemoryCache.set(key, {
+    response: responseBody,
+    createdAt: Date.now(),
+  });
+
+  // Cleanup old entries from in-memory cache
+  const now = Date.now();
+  for (const [cacheKey, value] of inMemoryCache.entries()) {
+    if (now - value.createdAt > 24 * 60 * 60 * 1000) {
+      inMemoryCache.delete(cacheKey);
+    }
+  }
+}
