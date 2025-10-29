@@ -45,6 +45,8 @@ cd ../examples/ts-demo && bun install && bun run dev
 
 **See it work in 60 seconds.** The bridge runs on `:8402`, demos show verify → settle flow with consensus proofs.
 
+> **🧪 Ready to test on Base Sepolia?** See **[Week 1 Testing Guide](./WEEK1_TESTING_GUIDE.md)** for comprehensive testing instructions!
+
 ---
 
 ## Architecture
@@ -145,6 +147,180 @@ cre workflow simulate x402-facilitator --target local-simulation
 ```
 
 **Note:** The HTTP bridge provides a stable API without requiring CRE CLI.
+
+---
+
+## Managed Facilitator (Production-Ready)
+
+ChaosChain provides a **production-ready managed facilitator** at `https://pay.chaoscha.in` that handles all payment verification and settlement complexity.
+
+### Architecture: Non-Custodial & Secure
+
+- **Non-custodial settlement:** Uses `transferFrom` - we never hold your funds
+- **Fast settlement:** < 1 second (plus blockchain confirmation time)
+- **No gas fees:** Merchants don't pay gas, customers don't pay gas
+- **Universal compatibility:** If it speaks HTTP, it speaks x402
+- **Optional identity:** Link payments to ERC-8004 agents for reputation tracking
+
+### Facilitator URL
+
+The ChaosChain facilitator URL is `https://pay.chaoscha.in`.
+
+**That's it. No signup, no API keys, no complexity.** Just like PayAI, but with optional ERC-8004 identity integration.
+
+### Using the Managed Facilitator
+
+**With ChaosChain SDK (Recommended):**
+
+```typescript
+import { ChaosChainSDK } from '@chaoschain/sdk';
+
+const sdk = new ChaosChainSDK({
+  facilitatorUrl: 'https://pay.chaoscha.in',
+  agentId: '8004#123', // Optional: ERC-8004 tokenId for reputation
+});
+
+// Payments automatically route through facilitator
+```
+
+**With Raw HTTP:**
+
+```bash
+curl -X POST https://pay.chaoscha.in/verify \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "x402Version": 1,
+    "paymentHeader": {
+      "sender": "0xPayerAddress",
+      "nonce": "unique_nonce_123",
+      "validAfter": "2025-10-29T00:00:00Z",
+      "validBefore": "2025-10-29T01:00:00Z"
+    },
+    "paymentRequirements": {
+      "scheme": "exact",
+      "network": "base-sepolia",
+      "maxAmountRequired": "10.00",
+      "payTo": "0xMerchantAddress",
+      "asset": "usdc",
+      "resource": "/api/service"
+    }
+  }'
+```
+
+**Response:**
+
+```json
+{
+  "isValid": true,
+  "feeAmount": "100000",
+  "netAmount": "9900000",
+  "feeBps": 100,
+  "consensusProof": "0xabc123...",
+  "timestamp": 1730160000
+}
+```
+
+### Fee Structure
+
+**Simple flat fee:** 1% on all transactions
+- Transparent and disclosed before settlement
+- Net amount goes directly to merchant
+- Fee supports protocol development
+- No hidden costs, no surprises
+
+**Example:** 10 USDC payment
+- Merchant receives: 9.90 USDC
+- ChaosChain fee: 0.10 USDC
+- Total from payer: 10.00 USDC
+
+### Self-Hosting (Optional)
+
+Want to run your own facilitator? Set these environment variables:
+
+```bash
+# Facilitator Configuration
+FACILITATOR_MODE=managed
+DEFAULT_CHAIN=base-sepolia
+
+# Fee Configuration
+FEE_BPS_DEFAULT=100  # 1%
+TREASURY_ADDRESS=0xYourTreasuryAddress
+
+# RPC Endpoints
+BASE_SEPOLIA_RPC_URL=https://sepolia.base.org
+ETHEREUM_SEPOLIA_RPC_URL=https://ethereum-sepolia.blockpi.network/v1/rpc/public
+
+# Hot Wallet
+FACILITATOR_PRIVATE_KEY=0xYourPrivateKey
+
+# Optional: ChaosChain ERC-8004 Integration
+CHAOSCHAIN_ENABLED=false
+VALIDATION_REGISTRY_ADDRESS=0xRegistryAddress
+
+# Supabase (for transaction tracking)
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_SERVICE_KEY=your-service-key
+```
+
+### Health & Status
+
+Check facilitator health:
+
+```bash
+curl https://pay.chaoscha.in/health
+```
+
+```json
+{
+  "healthy": true,
+  "checks": {
+    "supabase": true,
+    "rpcBaseSepolia": true,
+    "gasBalance": "0.5",
+    "gasBalanceHealthy": true,
+    "usdcBalance": "1000.0",
+    "rpcLatencyMs": 120,
+    "blockLag": 2
+  }
+}
+```
+
+**Status page:** https://status.pay.chaoscha.in
+
+### For Merchants: Start Earning
+
+Want to monetize your AI agent services? See our merchant guide:
+
+**[→ Merchant Guide: Selling Services with x402](./docs/MERCHANT_GUIDE.md)**
+
+Quick overview:
+1. Return `402 Payment Required` with payment requirements
+2. Client approves facilitator and pays
+3. You receive USDC (minus small fee)
+4. No gas fees, no custody risk, instant settlement
+
+### For Developers: Integration Specs
+
+External SDK integration specifications:
+
+- **[TypeScript SDK Integration](./SDK_INTEGRATION_SPEC_TS.md)** - For chaoschain-sdk-ts
+- **[Python SDK Integration](./SDK_INTEGRATION_SPEC_PY.md)** - For chaoschain-sdk-py
+- **[Approve & Pay Recipe](./docs/APPROVE_AND_PAY.md)** - How to approve and pay
+- **[Terms of Service](./docs/TERMS.md)** - Legal terms and SLA
+
+### Managed vs Decentralized
+
+| Feature | Managed (Production) | Decentralized (Beta) |
+|---------|---------------------|----------------------|
+| **Deployment** | Hosted by ChaosChain | Self-hosted or CRE DON |
+| **Settlement** | Real on-chain (transferFrom) | CRE workflow consensus |
+| **Fees** | 1% flat fee | Gas only (if self-hosted) |
+| **Setup** | Zero - just use the URL | Requires CRE deployment |
+| **Support** | Community Discord | Community Discord |
+| **Identity (ERC-8004)** | Optional | Optional |
+| **Best for** | Production apps, merchants | Maximum trust-minimization |
+
+**Recommendation:** Start with managed (`https://pay.chaoscha.in`) for immediate production use. It's production-ready, battle-tested, and just works.
 
 ---
 

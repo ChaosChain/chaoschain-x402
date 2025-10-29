@@ -12,7 +12,10 @@
   "dependencies": {
     "fastify": "^4.28.1",
     "@fastify/cors": "^9.0.1",
-    "zod": "^3.23.8"
+    "zod": "^3.23.8",
+    "viem": "^2.21.0",
+    "@supabase/supabase-js": "^2.45.0",
+    "dotenv": "^16.4.5"
   },
   "devDependencies": {
     "@types/bun": "^1.2.21",

@@ -29,12 +29,25 @@ export const PaymentRequirementsSchema = z.object({
 export type PaymentRequirements = z.infer<typeof PaymentRequirementsSchema>;
 
 /**
+ * Payment Header Schema (decoded from base64)
+ */
+export const PaymentHeaderSchema = z.object({
+  sender: z.string(),
+  nonce: z.string(),
+  validAfter: z.string().optional(),
+  validBefore: z.string().optional(),
+  signature: z.string().optional(),
+});
+
+export type PaymentHeader = z.infer<typeof PaymentHeaderSchema>;
+
+/**
  * Verify Request Schema
  * POST /verify request body
  */
 export const VerifyRequestSchema = z.object({
   x402Version: z.number(),
-  paymentHeader: z.string(), // base64 encoded X-PAYMENT header
+  paymentHeader: z.union([z.string(), PaymentHeaderSchema]), // base64 string or decoded object
   paymentRequirements: PaymentRequirementsSchema,
 });
 
@@ -46,8 +59,9 @@ export type VerifyRequest = z.infer<typeof VerifyRequestSchema>;
  */
 export const SettleRequestSchema = z.object({
   x402Version: z.number(),
-  paymentHeader: z.string(), // base64 encoded X-PAYMENT header
+  paymentHeader: z.union([z.string(), PaymentHeaderSchema]), // base64 string or decoded object
   paymentRequirements: PaymentRequirementsSchema,
+  agentId: z.string().optional(), // ERC-8004 token ID for Proof-of-Agency
 });
 
 export type SettleRequest = z.infer<typeof SettleRequestSchema>;
@@ -63,9 +77,12 @@ export type SettleRequest = z.infer<typeof SettleRequestSchema>;
 export interface VerifyResponse {
   isValid: boolean;
   invalidReason: string | null;
-  consensusProof?: string; // CRE consensus proof (ChaosChain extension)
+  consensusProof: string | null; // CRE consensus proof (ChaosChain extension)
   reportId?: string; // Report identifier (ChaosChain extension)
   timestamp?: number; // Unix timestamp (ChaosChain extension)
+  feeAmount?: string; // Fee amount in base units (managed mode)
+  netAmount?: string; // Net amount to merchant (managed mode)
+  feeBps?: number; // Fee in basis points (managed mode)
 }
 
 /**
@@ -76,9 +93,15 @@ export interface SettleResponse {
   success: boolean;
   error: string | null;
   txHash: string | null;
+  txHashFee?: string; // Fee transfer tx hash (managed mode)
   networkId: string | null;
   consensusProof?: string; // CRE consensus proof (ChaosChain extension)
   timestamp?: number; // Unix timestamp (ChaosChain extension)
+  feeAmount?: string; // Fee amount in base units (managed mode)
+  netAmount?: string; // Net amount to merchant (managed mode)
+  status?: 'pending' | 'partial_settlement' | 'confirmed' | 'failed'; // Settlement status (managed mode)
+  evidenceHash?: string; // Evidence hash for Proof-of-Agency (ChaosChain extension)
+  proofOfAgency?: string; // ValidationRegistry tx hash (ChaosChain extension)
 }
 
 // ============================================================================
@@ -104,8 +127,11 @@ export interface ErrorResponse {
  */
 export interface BridgeConfig {
   port: number;
-  creMode: "simulate" | "remote";
+  mode: 'managed' | 'decentralized'; // Facilitator mode
+  creMode: "simulate" | "remote"; // CRE workflow mode (for decentralized)
   creWorkflowUrl?: string;
   logLevel: "debug" | "info" | "warn" | "error";
+  defaultChain: string; // Default blockchain (e.g., 'base-sepolia')
+  chaoschainEnabled: boolean; // Enable ChaosChain ERC-8004 integration
 }
 

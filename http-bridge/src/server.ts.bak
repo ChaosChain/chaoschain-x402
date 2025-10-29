@@ -271,7 +271,8 @@ server.post<{ Body: VerifyRequest; Reply: VerifyResponse | ErrorResponse }>(
       const validatedRequest = VerifyRequestSchema.parse(request.body);
 
       // Check idempotency
-      const cached = await checkIdempotency(request, reply);
+      const apiKey = request.headers['x-cc-apikey'] as string;
+      const cached = await checkIdempotency(request, reply, apiKey);
       if (cached && cached._conflict !== true) return;
       if (cached?._conflict) return;
 
@@ -298,7 +299,7 @@ server.post<{ Body: VerifyRequest; Reply: VerifyResponse | ErrorResponse }>(
           // Calculate fee for this payment
           const decimals = verification.decimals || 6;
           const amount = parseUnits(validatedRequest.paymentRequirements.maxAmountRequired, decimals);
-          const feeCalc = await calculateFee(amount);
+          const feeCalc = await calculateFee(amount, apiKey);
 
           response = {
             isValid: true,
@@ -323,7 +324,7 @@ server.post<{ Body: VerifyRequest; Reply: VerifyResponse | ErrorResponse }>(
       if (idempotencyKey) {
         const paymentHeader = parsePaymentHeader(validatedRequest.paymentHeader);
         const requestHash = generateIdempotencyHash(
-          "public",
+          apiKey || 'anonymous',
           '/verify',
           validatedRequest,
           paymentHeader.sender,
@@ -392,7 +393,8 @@ server.post<{ Body: SettleRequest; Reply: SettleResponse | ErrorResponse }>(
       const validatedRequest = SettleRequestSchema.parse(request.body);
 
       // Check idempotency
-      const cached = await checkIdempotency(request, reply);
+      const apiKey = request.headers['x-cc-apikey'] as string;
+      const cached = await checkIdempotency(request, reply, apiKey);
       if (cached && cached._conflict !== true) return;
       if (cached?._conflict) return;
 
@@ -420,7 +422,7 @@ server.post<{ Body: SettleRequest; Reply: SettleResponse | ErrorResponse }>(
         } else {
           const decimals = verification.decimals || 6;
           const amount = parseUnits(validatedRequest.paymentRequirements.maxAmountRequired, decimals);
-          const feeCalc = await calculateFee(amount);
+          const feeCalc = await calculateFee(amount, apiKey);
 
           // Execute atomic dual-transfer settlement
           const settlement = await settlePaymentManaged(
@@ -477,7 +479,7 @@ server.post<{ Body: SettleRequest; Reply: SettleResponse | ErrorResponse }>(
       if (idempotencyKey) {
         const paymentHeader = parsePaymentHeader(validatedRequest.paymentHeader);
         const requestHash = generateIdempotencyHash(
-          "public",
+          apiKey || 'anonymous',
           '/settle',
           validatedRequest,
           paymentHeader.sender,

@@ -56,3 +56,6 @@ Thumbs.db
 *.md 
 !README.md
 !CONTRIBUTING.md
+
+A2AX402Extension.ts
+a2a_x402_extension.py
