@@ -1,21 +1,26 @@
-# syntax=docker/dockerfile:1
+# Use official Node.js 20 image
+FROM node:20-alpine
 
-FROM oven/bun:1.2.21-alpine
-
+# Set working directory
 WORKDIR /app
 
 # Copy package files
-COPY package.json bun.lock* ./
+COPY package*.json ./
 
-# Install dependencies
-RUN bun install --frozen-lockfile
+# Install ALL dependencies (including devDependencies for TypeScript build)
+RUN npm ci
 
 # Copy source code
 COPY . .
 
+# Build TypeScript
+RUN npm run build
+
+# Remove devDependencies to reduce image size
+RUN npm prune --production
+
 # Expose port
 EXPOSE 8402
 
-# Run the server
-CMD ["bun", "run", "start"]
-
+# Start server
+CMD ["node", "dist/server.js"]
