@@ -2,7 +2,6 @@
   "name": "@chaoschain/x402-bridge",
   "version": "0.1.0",
   "description": "HTTP bridge for ChaosChain x402 decentralized facilitator",
-  "type": "module",
   "engines": {
     "node": ">=20.0.0"
   },
