@@ -420,7 +420,7 @@ server.post<{ Body: SettleRequest; Reply: SettleResponse | ErrorResponse }>(
       let response: SettleResponse;
 
       if (config.mode === 'managed') {
-        // MANAGED MODE: Real on-chain settlement with non-custodial transferFrom
+        // MANAGED MODE: Real on-chain settlement with EIP-3009 transferWithAuthorization
         
         // First verify
         const verification = await verifyPaymentManaged(validatedRequest);
@@ -561,8 +561,8 @@ const start = async () => {
     console.log("");
     if (config.mode === 'managed') {
       console.log("Features:");
-      console.log(`  ✓ Non-custodial settlement (transferFrom)`);
-      console.log(`  ✓ Atomic fee routing`);
+      console.log(`  ✓ EIP-3009 gasless settlement (transferWithAuthorization)`);
+      console.log(`  ✓ Non-custodial, no approvals needed`);
       console.log(`  ✓ Finality tracking (${config.defaultChain.includes('base') ? '2' : '3'} blocks)`);
       console.log(`  ✓ Replay protection`);
       console.log(`  ✓ Rate limiting & idempotency`);

@@ -1,34 +1,40 @@
 # HTTP Bridge for ChaosChain x402 Facilitator
 
-REST API bridge for the decentralized x402 facilitator powered by Chainlink CRE.
+REST API server for x402 payment verification and settlement with dual-mode support: **managed** (production) and **decentralized** (CRE-based).
 
 ## Overview
 
-This service provides a standard HTTP interface for x402 payment verification and settlement. It acts as a bridge between clients (TypeScript SDK, Python SDK, etc.) and the CRE workflow DON.
+This service provides a standard HTTP interface for x402 payment verification and settlement. It supports two modes:
 
-## Current Mode: Simulate
+1. **Managed Mode (Production)**: EIP-3009 compliant, non-custodial settlement on Base/Ethereum
+2. **Decentralized Mode (CRE)**: Distributed verification via Chainlink CRE (in development)
 
-The bridge currently runs in **simulate mode**, returning mock consensus responses. This allows public demonstration without requiring access to the CRE private alpha.
+## Current Status
+
+- **Managed Mode**: Production-ready on Base Sepolia
+- **Decentralized Mode**: Active development using Chainlink CRE
 
 ## Installation
 
 ```bash
-bun install
+npm install
 ```
 
 ## Running the Server
 
 ### Development Mode (with hot reload)
 ```bash
-bun run dev
+npm run dev
 ```
 
 ### Production Mode
 ```bash
-bun run start
+npm run start
 ```
 
 The server will start on port `8402` (configurable via `PORT` env var).
+
+**Default mode is `managed`** - production-ready EIP-3009 settlement.
 
 ## API Endpoints
 
@@ -121,31 +127,37 @@ Settle an x402 payment via decentralized consensus
 
 ## Configuration
 
-Create a `.env` file (copy from root `.env.example`):
+Create a `.env` file:
 
 ```bash
-PORT=8402
-CRE_MODE=simulate
-LOG_LEVEL=info
+# Mode selection
+FACILITATOR_MODE=managed          # managed | decentralized
+DEFAULT_CHAIN=base-sepolia        # base-sepolia | base-mainnet | ethereum-mainnet
 
-# For production mode (when CRE is deployed):
-# CRE_MODE=remote
-# CRE_WORKFLOW_URL=https://your-cre-workflow-url.com
+# Managed mode (production)
+FACILITATOR_PRIVATE_KEY=0x...     # Facilitator wallet private key
+TREASURY_ADDRESS=0x...            # Fee collection address
+BASE_SEPOLIA_RPC_URL=https://...
+BASE_MAINNET_RPC_URL=https://...
+ETHEREUM_MAINNET_RPC_URL=https://...
+
+# Decentralized mode (CRE) - in development
+CRE_MODE=simulate                 # simulate | remote
+CRE_WORKFLOW_URL=https://...      # Remote CRE endpoint (for remote mode)
+
+# General
+PORT=8402
+LOG_LEVEL=info
 ```
 
-## Upgrading to Production
+## Mode Comparison
 
-When CRE becomes publicly available:
-
-1. Deploy the CRE workflow (see `workflows/x402-facilitator/`)
-2. Set environment variables:
-   ```bash
-   CRE_MODE=remote
-   CRE_WORKFLOW_URL=https://your-deployed-cre-workflow.com
-   ```
-3. Implement the `forwardVerifyToCRE` and `forwardSettleToCRE` functions in `src/server.ts`
-
-The API contract remains the same, so clients don't need to change.
+| Feature | Managed Mode | Decentralized Mode |
+|---------|--------------|-------------------|
+| **Settlement** | EIP-3009 on-chain | CRE consensus |
+| **Gasless** | ✅ Yes | ✅ Yes |
+| **Approvals** | ❌ None needed | ❌ None needed |
+| **Production** | ✅ Ready | 🔧 Development |
 
 ## Testing
 

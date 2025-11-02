@@ -56,6 +56,11 @@ Thumbs.db
 *.md 
 !README.md
 !CONTRIBUTING.md
+!docs/MERCHANT_GUIDE.md
 
 A2AX402Extension.ts
 a2a_x402_extension.py
+
+test_eip3009_formats.sh
+test_ready_for_genesis.sh
+test_verify.sh
