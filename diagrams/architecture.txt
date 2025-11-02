@@ -100,11 +100,9 @@ The CRE workflow can target multiple chains:
 
    ChaosChain-x402 Facilitator DON
               │
-              ├─────────► Base (Coinbase native x402)
+              ├─────────► Base (native x402)
               │
               ├─────────► 0G Chain (z402 variant)
-              │
-              ├─────────► EigenLayer (compute fees)
               │
               └─────────► Ethereum (USDC, native x402)
 
