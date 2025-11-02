@@ -71,12 +71,6 @@ const server = Fastify({
   },
 });
 
-// Enable CORS for cross-origin requests
-await server.register(cors, {
-  origin: true, // Allow all origins in development
-  methods: ["GET", "POST", "OPTIONS"],
-});
-
 // ============================================================================
 // UTILITY FUNCTIONS
 // ============================================================================
@@ -534,6 +528,12 @@ server.post<{ Body: SettleRequest; Reply: SettleResponse | ErrorResponse }>(
 
 const start = async () => {
   try {
+    // Register CORS plugin
+    await server.register(cors, {
+      origin: true, // Allow all origins in development
+      methods: ["GET", "POST", "OPTIONS"],
+    });
+    
     await server.listen({ port: config.port, host: "0.0.0.0" });
     
     // Start background finality confirmer if in managed mode
@@ -577,5 +577,8 @@ const start = async () => {
   }
 };
 
-start();
+start().catch((err) => {
+  console.error('Failed to start server:', err);
+  process.exit(1);
+});
 
