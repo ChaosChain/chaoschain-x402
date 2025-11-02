@@ -1,12 +1,11 @@
 # ChaosChain-x402
 
-### The Decentralized Facilitator for Agentic Payments
+### Building the First Decentralized x402 Payment Facilitator
 
-[![Status](https://img.shields.io/badge/status-private_alpha-blue)]()
+[![Status](https://img.shields.io/badge/status-production_ready-green)]()
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.6-blue)](https://www.typescriptlang.org/)
-[![Python](https://img.shields.io/badge/Python-3.9+-blue)](https://www.python.org/)
-[![CRE SDK](https://img.shields.io/badge/CRE-0.0.9--alpha-orange)](https://github.com/smartcontractkit/cre-sdk-typescript)
+[![x402](https://img.shields.io/badge/x402-compliant-blue)](https://x402.org)
 
 **Powered by:** [ChaosChain](https://github.com/ChaosChain) · [ERC-8004](https://eips.ethereum.org/EIPS/eip-8004) · [x402](https://github.com/coinbase/x402) · [Chainlink CRE](https://chain.link/cre)
 
@@ -14,38 +13,77 @@
 
 ## Overview
 
-**ChaosChain-x402** replaces x402's centralized facilitator with a **decentralized, BFT-verified runtime** on Chainlink CRE.
+**ChaosChain-x402** is building the first **decentralized x402 payment facilitator** powered by Chainlink CRE. Our vision: replace centralized payment verification with **Byzantine Fault Tolerant consensus** and **cryptographic proofs**.
 
-Verify & settle agent payments with **consensus proofs**, attach **ERC-8004 identity**, and run it yourself or use our managed endpoints.
+**Current Status:**
+- 🚀 **Managed Facilitator** - Production-ready, live on Base Sepolia
+- 🔧 **Decentralized Facilitator** - Active development using Chainlink CRE
 
-> **Note:** Currently runs in local development mode with CRE workflow.
+> **The Goal:** Decentralized, trustless payment verification for the agent economy. The managed facilitator is our production MVP while we build the full CRE-based vision.
 
-**Key Features:**
-- ✅ **Byzantine Fault Tolerant consensus** - Multiple nodes verify every payment
-- ✅ **Cryptographic proofs** - Every operation is verifiable
-- ✅ **Multi-chain support** - Base, Ethereum, 0G, EigenLayer
-- ✅ **Plug-and-play** - REST API, TypeScript & Python clients
-- ✅ **Self-host or managed** - Run your own or use ChaosChain endpoints
+**Managed Facilitator (Production - Available Now):**
+- ✅ **x402 compliant** - Works with any x402 client (ChaosChain, PayAI, custom)
+- ✅ **EIP-3009 gasless** - Payers don't need ETH, facilitator sponsors gas
+- ✅ **No API keys needed** - Public service, anyone can use
+- ✅ **Multi-chain** - Base Sepolia (testnet), Base Mainnet (coming soon)
+
+**Decentralized Facilitator (In Development - The Vision):**
+- 🔧 **Byzantine Fault Tolerant consensus** - Multiple nodes verify every payment
+- 🔧 **Cryptographic proofs** - Every operation is verifiable on-chain
+- 🔧 **Multi-chain support** - Base, Ethereum, 0G, EigenLayer
+- 🔧 **Chainlink CRE powered** - Decentralized execution environment
 
 ---
 
-## 15-Second Quickstart
+## Quick Start
+
+### Use the Managed Facilitator (Production)
+
+```bash
+# No installation needed! Just use the public endpoint:
+# https://facilitator.chaoscha.in
+
+# Test with Genesis Studio from ChaosChain SDK:
+export CC_FACILITATOR_URL=https://facilitator.chaoscha.in
+python examples/genesis_studio.py
+```
+
+### Self-Host the Facilitator (Local)
 
 ```bash
 git clone https://github.com/ChaosChain/chaoschain-x402
-cd chaoschain-x402
+cd chaoschain-x402/http-bridge
 
-# 1) Start facilitator bridge (simulate mode)
-cd http-bridge && bun install && bun run dev
+# Install dependencies
+npm install
 
-# 2) Run a demo client (pick one)
-cd ../examples/ts-demo && bun install && bun run dev
-# or: cd ../examples/py-demo && pip install -r requirements.txt && python demo.py
+# Configure environment (.env file)
+cp .env.example .env
+# Add your FACILITATOR_PRIVATE_KEY, RPC URLs, etc.
+
+# Start in managed mode
+npm run dev
 ```
 
-**See it work in 60 seconds.** The bridge runs on `:8402`, demos show verify → settle flow with consensus proofs.
+**The facilitator runs on `:8402`** and provides `/verify` and `/settle` endpoints for any x402 client.
 
-> **🧪 Ready to test on Base Sepolia?** See **[Week 1 Testing Guide](./WEEK1_TESTING_GUIDE.md)** for comprehensive testing instructions!
+---
+
+## Why Decentralized?
+
+**The Problem with Centralized Facilitators:**
+- ❌ Single point of failure - If the facilitator goes down, payments stop
+- ❌ Trust assumptions - Users must trust the facilitator operator
+- ❌ Censorship risk - Centralized operators can block transactions
+- ❌ No verifiability - Payment verification happens in a black box
+
+**Our Decentralized Solution (CRE-based):**
+- ✅ **Byzantine Fault Tolerant** - Multiple nodes reach consensus, no single point of failure
+- ✅ **Cryptographically Verifiable** - Every payment verification produces an on-chain proof
+- ✅ **Censorship Resistant** - Distributed node network, no central authority
+- ✅ **Trustless** - Don't trust us, verify the consensus proofs yourself
+
+**The managed facilitator is our MVP** - it proves the product-market fit and generates revenue while we build the full decentralized vision. Think of it as "training wheels" for the agent economy.
 
 ---
 
@@ -152,7 +190,7 @@ cre workflow simulate x402-facilitator --target local-simulation
 
 ## Managed Facilitator (Production-Ready)
 
-ChaosChain provides a **production-ready managed facilitator** at `https://pay.chaoscha.in` that handles all payment verification and settlement complexity.
+ChaosChain provides a **production-ready managed facilitator** at `https://facilitator.chaoscha.in` that handles all payment verification and settlement complexity.
 
 ### Architecture: Non-Custodial & Secure
 
@@ -178,7 +216,7 @@ All API responses include both **human** strings (e.g., `"1.00" USDC`) and **bas
 
 ### Facilitator URL
 
-The ChaosChain facilitator URL is `https://pay.chaoscha.in`.
+The ChaosChain facilitator URL is `https://facilitator.chaoscha.in`.
 
 **That's it. No signup, no API keys, no complexity.** Just like PayAI, but every payment automatically builds your agent's on-chain reputation via ERC-8004.
 
@@ -190,7 +228,7 @@ The ChaosChain facilitator URL is `https://pay.chaoscha.in`.
 import { ChaosChainSDK } from '@chaoschain/sdk';
 
 const sdk = new ChaosChainSDK({
-  facilitatorUrl: 'https://pay.chaoscha.in',
+  facilitatorUrl: 'https://facilitator.chaoscha.in',
   agentId: '8004#123', // Optional: ERC-8004 tokenId for reputation
 });
 
@@ -200,7 +238,7 @@ const sdk = new ChaosChainSDK({
 **With Raw HTTP:**
 
 ```bash
-curl -X POST https://pay.chaoscha.in/verify \
+curl -X POST https://facilitator.chaoscha.in/verify \
   -H 'Content-Type: application/json' \
   -d '{
     "x402Version": 1,
@@ -281,7 +319,7 @@ SUPABASE_SERVICE_KEY=your-service-key
 Check facilitator health:
 
 ```bash
-curl https://pay.chaoscha.in/health
+curl https://facilitator.chaoscha.in/health
 ```
 
 ```json
@@ -299,7 +337,7 @@ curl https://pay.chaoscha.in/health
 }
 ```
 
-**Status page:** https://status.pay.chaoscha.in
+**Status page:** https://status.facilitator.chaoscha.in
 
 ### For Merchants: Start Earning
 
@@ -334,7 +372,7 @@ External SDK integration specifications:
 | **Identity (ERC-8004)** | Automatic when using SDK | Automatic when using SDK |
 | **Best for** | Production apps, merchants | Maximum trust-minimization |
 
-**Recommendation:** Start with managed (`https://pay.chaoscha.in`) for immediate production use. It's production-ready, battle-tested, and just works.
+**Recommendation:** Start with managed (`https://facilitator.chaoscha.in`) for immediate production use. It's production-ready, battle-tested, and just works.
 
 ---
 
@@ -590,17 +628,34 @@ pytest
 
 ## Roadmap
 
-| Phase | Milestone | ETA | Status |
-|-------|-----------|-----|--------|
-| 1 | Verify & Settle CRE workflows (simulate mode) | — | ✅ Complete |
-| 2 | HTTP bridge + thin clients (TS & Python) | — | ✅ Complete |
-| **→** | **OpenAPI spec + Docker Compose** | **This week** | 🔄 In progress |
-| **→** | **Publish npm/PyPI packages** | **This week** | 🔄 In progress |
-| 3 | CRE public beta integration | Q1 2025 | 📅 Planned |
-| 4 | ERC-8004 Proof-of-Agency integration | Q1 2025 | 📅 Planned |
-| 5 | z402 deployment on 0G testnet | Q2 2025 | 📅 Planned |
-| 6 | Multi-chain CRE support (Base, Eigen) | Q2 2025 | 📅 Planned |
-| 7 | Managed Facilitator public launch | Q2 2025 | 📅 Planned |
+> **Vision:** Build the first truly decentralized x402 facilitator with BFT consensus, replacing centralized payment verification with cryptographic proofs.
+
+### Phase 1: Managed Facilitator (MVP) ✅ COMPLETE
+- ✅ EIP-3009 compliant payment verification
+- ✅ On-chain settlement via `transferWithAuthorization`
+- ✅ x402 universal compatibility (works with any client)
+- ✅ Production-ready HTTP bridge
+- ✅ Tested on Base Sepolia
+
+### Phase 2: Production Launch 🔄 THIS WEEK
+- 🔄 Railway deployment (Base Sepolia → Mainnet)
+- 🔄 Public endpoint: `facilitator.chaoscha.in`
+- 🔄 Revenue generation (1% facilitator fees)
+- 📅 Multi-chain support (Ethereum, 0G)
+
+### Phase 3: Decentralized Facilitator (CRE) 🔧 ACTIVE DEVELOPMENT
+- 🔧 **Byzantine Fault Tolerant consensus** - Multi-node verification
+- 🔧 **Cryptographic proofs** - Every payment verifiable on-chain
+- 🔧 **Remote CRE DON integration** - Live Chainlink network
+- 🔧 **Distributed verification** - No single point of failure
+- 📅 Target: Q1 2026
+
+### Phase 4: Full Decentralization 📅 Q2 2026
+- 📅 Decentralized facilitator on mainnet (Base, Ethereum)
+- 📅 ERC-8004 Proof-of-Agency integration
+- 📅 0G network support (native token payments)
+- 📅 Community validator program
+- 📅 On-chain governance for facilitator parameters
 
 ---
 
@@ -679,5 +734,5 @@ This project is licensed under the MIT License - see the [LICENSE](./LICENSE) fi
 
 ---
 
-**Status:** 🟢 Active Development | Private Alpha
+**Status:** 🟢 Production (Managed) | Active Development (Decentralized)
 

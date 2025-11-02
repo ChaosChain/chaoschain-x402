@@ -189,11 +189,10 @@ async function forwardSettleToCRE(request: SettleRequest): Promise<SettleRespons
  * Health check and service information
  */
 server.get("/", async () => {
-  return {
+  const info: any = {
     service: "ChaosChain x402 Facilitator",
     version: "0.1.0",
-    facilitatorMode: config.mode,
-    creMode: config.creMode,
+    mode: config.mode,
     endpoints: {
       verify: "POST /verify",
       settle: "POST /settle",
@@ -202,6 +201,19 @@ server.get("/", async () => {
     },
     docs: "https://github.com/ChaosChain/chaoschain-x402",
   };
+  
+  // Only show CRE mode if we're in decentralized mode
+  if (config.mode === 'decentralized') {
+    info.creMode = config.creMode;
+  }
+  
+  // Show what we're actually doing
+  if (config.mode === 'managed') {
+    info.settlement = 'Production-ready on-chain settlement';
+    info.network = config.defaultChain;
+  }
+  
+  return info;
 });
 
 /**
@@ -222,18 +234,22 @@ server.get("/supported", async () => {
   return {
     kinds: [
       {
+        x402Version: 1,
         scheme: "exact",
         network: "base-sepolia",
       },
       {
+        x402Version: 1,
         scheme: "exact",
         network: "ethereum-sepolia",
       },
       {
+        x402Version: 1,
         scheme: "exact",
         network: "base-mainnet",
       },
       {
+        x402Version: 1,
         scheme: "exact",
         network: "ethereum-mainnet",
       },
@@ -422,8 +438,8 @@ server.post<{ Body: SettleRequest; Reply: SettleResponse | ErrorResponse }>(
             net: feeBreakdown.net,
           };
         } else {
-          const decimals = verification.decimals || 6;
-          const amount = parseUnits(validatedRequest.paymentRequirements.maxAmountRequired, decimals);
+          // maxAmountRequired is already in base units per x402 spec
+          const amount = BigInt(validatedRequest.paymentRequirements.maxAmountRequired);
           const feeCalc = await calculateFee(amount);
 
           // Execute atomic dual-transfer settlement

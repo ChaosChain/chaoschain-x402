@@ -1,4 +1,4 @@
-import { parseUnits } from 'viem';
+import { formatUnits } from 'viem';
 import { calculateFee } from './fees';
 
 /**
@@ -32,23 +32,24 @@ export async function computeFeeBreakdown(
 ): Promise<AmountBreakdown> {
   // USDC default 6 decimals; if you later add dynamic decimals, fold it in here
   const decimals = 6;
-  const baseAmount = parseUnits(maxAmountRequired, decimals);
+  // maxAmountRequired is already in base units per x402 spec
+  const baseAmount = BigInt(maxAmountRequired);
   const { feeAmount, netAmount, feeBps } = await calculateFee(baseAmount);
 
   return {
     amount: {
-      human: maxAmountRequired,
+      human: formatUnits(baseAmount, decimals),
       base: baseAmount.toString(),
       symbol: 'USDC',
       decimals,
     },
     fee: {
-      human: (Number(maxAmountRequired) * feeBps / 10000).toFixed(2), // display-only
+      human: formatUnits(feeAmount, decimals),
       base: feeAmount.toString(),
       bps: feeBps,
     },
     net: {
-      human: (Number(maxAmountRequired) * (1 - feeBps / 10000)).toFixed(2),
+      human: formatUnits(netAmount, decimals),
       base: netAmount.toString(),
     },
   };
