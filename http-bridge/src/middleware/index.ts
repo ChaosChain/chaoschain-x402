@@ -1,3 +1,3 @@
-export { checkIdempotency, storeIdempotencyResponse, generateIdempotencyHash } from './idempotency';
+export { tryServeCachedResponse, storeResponseForIdempotency, getIdempotencyKey } from './idempotency';
 export { rateLimitMiddleware } from './rateLimit';
 

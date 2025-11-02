@@ -71,6 +71,27 @@ export type SettleRequest = z.infer<typeof SettleRequestSchema>;
 // ============================================================================
 
 /**
+ * Amount breakdown for transparency
+ */
+export interface AmountBreakdown {
+  human: string;   // Human-readable amount (e.g., "1.00")
+  base: string;    // Base units (e.g., "1000000")
+  symbol: string;  // Token symbol (e.g., "USDC")
+  decimals?: number; // Token decimals (e.g., 6)
+}
+
+export interface FeeBreakdown {
+  human: string;   // Human-readable fee (e.g., "0.01")
+  base: string;    // Base units (e.g., "10000")
+  bps: number;     // Basis points (e.g., 100 for 1%)
+}
+
+export interface NetBreakdown {
+  human: string;   // Human-readable net (e.g., "0.99")
+  base: string;    // Base units (e.g., "990000")
+}
+
+/**
  * Verification Response
  * Returned by POST /verify
  */
@@ -80,9 +101,10 @@ export interface VerifyResponse {
   consensusProof: string | null; // CRE consensus proof (ChaosChain extension)
   reportId?: string; // Report identifier (ChaosChain extension)
   timestamp?: number; // Unix timestamp (ChaosChain extension)
-  feeAmount?: string; // Fee amount in base units (managed mode)
-  netAmount?: string; // Net amount to merchant (managed mode)
-  feeBps?: number; // Fee in basis points (managed mode)
+  // Fee transparency (always present)
+  amount?: AmountBreakdown;
+  fee?: FeeBreakdown;
+  net?: NetBreakdown;
 }
 
 /**
@@ -97,11 +119,13 @@ export interface SettleResponse {
   networkId: string | null;
   consensusProof?: string; // CRE consensus proof (ChaosChain extension)
   timestamp?: number; // Unix timestamp (ChaosChain extension)
-  feeAmount?: string; // Fee amount in base units (managed mode)
-  netAmount?: string; // Net amount to merchant (managed mode)
   status?: 'pending' | 'partial_settlement' | 'confirmed' | 'failed'; // Settlement status (managed mode)
   evidenceHash?: string; // Evidence hash for Proof-of-Agency (ChaosChain extension)
   proofOfAgency?: string; // ValidationRegistry tx hash (ChaosChain extension)
+  // Fee transparency (always present)
+  amount?: AmountBreakdown;
+  fee?: FeeBreakdown;
+  net?: NetBreakdown;
 }
 
 // ============================================================================
