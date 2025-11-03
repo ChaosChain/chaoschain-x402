@@ -1,84 +1,134 @@
-import { createPublicClient, http, formatEther, formatUnits } from 'viem';
-import { baseSepolia } from 'viem/chains';
+import { createPublicClient, http, formatEther, formatUnits, defineChain } from 'viem';
+import { base, baseSepolia, mainnet, sepolia } from 'viem/chains';
 import { createClient } from '@supabase/supabase-js';
 import { privateKeyToAccount } from 'viem/accounts';
 
+// Define 0G Mainnet
+const zgMainnet = defineChain({
+  id: 16661,
+  name: '0G Mainnet',
+  network: '0g',
+  nativeCurrency: { decimals: 18, name: '0G', symbol: '0G' },
+  rpcUrls: {
+    default: { http: ['https://evmrpc.0g.ai'] },
+    public: { http: ['https://evmrpc.0g.ai'] },
+  },
+  blockExplorers: {
+    default: { name: '0G Explorer', url: 'https://chainscan.0g.ai' },
+  },
+});
+
+// Network configurations
+const NETWORKS = {
+  'base-sepolia': {
+    chain: baseSepolia,
+    rpcUrl: process.env.BASE_SEPOLIA_RPC_URL || 'https://sepolia.base.org',
+    tokenSymbol: 'USDC',
+  },
+  'ethereum-sepolia': {
+    chain: sepolia,
+    rpcUrl: process.env.ETHEREUM_SEPOLIA_RPC_URL,
+    tokenSymbol: 'USDC',
+  },
+  'base-mainnet': {
+    chain: base,
+    rpcUrl: process.env.BASE_MAINNET_RPC_URL,
+    tokenSymbol: 'USDC',
+  },
+  'ethereum-mainnet': {
+    chain: mainnet,
+    rpcUrl: process.env.ETHEREUM_MAINNET_RPC_URL,
+    tokenSymbol: 'USDC',
+  },
+  '0g-mainnet': {
+    chain: zgMainnet,
+    rpcUrl: process.env.ZG_MAINNET_RPC_URL || 'https://evmrpc.0g.ai',
+    tokenSymbol: 'W0G',
+  },
+};
+
 // Lazy load Supabase (optional for testing)
 function getSupabaseClient() {
-  if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_KEY) {
+  if (!process.env.SUPABASE_URL || !process.env.SUPABASE_ANON_KEY) {
     return null;
   }
   return createClient(
     process.env.SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_KEY
+    process.env.SUPABASE_ANON_KEY
   );
 }
 
+async function checkNetwork(networkName: string, config: any, facilitatorAddress: string) {
+  if (!config.rpcUrl) {
+    return {
+      rpcHealthy: false,
+      gasBalance: '0',
+      token: config.tokenSymbol,
+      error: 'RPC URL not configured',
+    };
+  }
+
+  try {
+    const client = createPublicClient({
+      chain: config.chain,
+      transport: http(config.rpcUrl),
+    });
+
+    // Check if RPC is reachable
+    const balance = await client.getBalance({ address: facilitatorAddress as `0x${string}` });
+    
+    return {
+      rpcHealthy: true,
+      gasBalance: formatEther(balance),
+      token: config.tokenSymbol,
+    };
+  } catch (e: any) {
+    return {
+      rpcHealthy: false,
+      gasBalance: '0',
+      token: config.tokenSymbol,
+      error: e.message || 'RPC check failed',
+    };
+  }
+}
+
 export async function checkHealth() {
-  const checks = {
-    supabase: false,
-    rpcBaseSepolia: false,
-    gasBalance: '0',
-    gasBalanceHealthy: false,
-    usdcBalance: '0',
-    rpcLatencyMs: 0,
-    blockLag: 0,
-    timestamp: new Date().toISOString(),
-  };
+  const facilitatorAddress = privateKeyToAccount(
+    process.env.FACILITATOR_PRIVATE_KEY! as `0x${string}`
+  ).address;
 
   // Check Supabase (optional)
+  let supabaseHealthy = true;
   const supabase = getSupabaseClient();
   if (supabase) {
     try {
       const { error } = await supabase.from('transactions').select('count').limit(1);
-      checks.supabase = !error;
+      supabaseHealthy = !error;
     } catch (e) {
-      checks.supabase = false;
+      supabaseHealthy = false;
     }
-  } else {
-    checks.supabase = true; // Consider healthy if not configured
   }
 
-  // Check RPC + Gas Balance + Block Lag
-  try {
-    const startTime = Date.now();
-    const client = createPublicClient({
-      chain: baseSepolia,
-      transport: http(process.env.BASE_SEPOLIA_RPC_URL!),
-    });
-    
-    const currentBlock = await client.getBlockNumber();
-    checks.rpcLatencyMs = Date.now() - startTime;
-    checks.rpcBaseSepolia = true;
+  // Check all networks in parallel
+  const networkChecks = await Promise.all(
+    Object.entries(NETWORKS).map(async ([name, config]) => {
+      const result = await checkNetwork(name, config, facilitatorAddress);
+      return [name, result];
+    })
+  );
 
-    // Check block lag (should be < 30 seconds)
-    const latestBlock = await client.getBlock({ blockNumber: currentBlock });
-    const blockAge = Date.now() / 1000 - Number(latestBlock.timestamp);
-    checks.blockLag = Math.floor(blockAge);
+  const networks = Object.fromEntries(networkChecks);
 
-    // Check facilitator gas balance
-    const account = privateKeyToAccount(process.env.FACILITATOR_PRIVATE_KEY! as `0x${string}`);
-    const balance = await client.getBalance({ address: account.address });
-    checks.gasBalance = formatEther(balance);
-    
-    const minGasBalance = parseFloat(process.env.MIN_GAS_BALANCE_ETH || '0.1');
-    checks.gasBalanceHealthy = parseFloat(checks.gasBalance) >= minGasBalance;
+  // Overall health: Supabase OK + at least one network healthy
+  const anyNetworkHealthy = Object.values(networks).some((n: any) => n.rpcHealthy);
+  const healthy = supabaseHealthy && anyNetworkHealthy;
 
-    // Check USDC balance (optional)
-    const usdcAddress = '0x036CbD53842c5426634e7929541eC2318f3dCF7e'; // Base Sepolia
-    const usdcBalance = await client.readContract({
-      address: usdcAddress,
-      abi: [{ inputs: [{ name: 'account', type: 'address' }], name: 'balanceOf', outputs: [{ name: '', type: 'uint256' }], stateMutability: 'view', type: 'function' }],
-      functionName: 'balanceOf',
-      args: [account.address],
-    });
-    checks.usdcBalance = formatUnits(usdcBalance, 6);
-
-  } catch (e) {
-    checks.rpcBaseSepolia = false;
-  }
-
-  const healthy = checks.supabase && checks.rpcBaseSepolia && checks.gasBalanceHealthy;
-  return { healthy, checks };
+  return {
+    healthy,
+    facilitatorAddress,
+    facilitatorMode: 'managed',
+    networks,
+    timestamp: new Date().toISOString(),
+  };
 }
 
