@@ -247,6 +247,11 @@ server.get("/supported", async () => {
         scheme: "exact",
         network: "ethereum-mainnet",
       },
+      {
+        x402Version: 1,
+        scheme: "exact",
+        network: "0g-mainnet",
+      },
     ],
   };
 });
