@@ -563,18 +563,21 @@ See [`diagrams/architecture.txt`](./diagrams/architecture.txt) for the detailed 
 
 ## Multi-Chain Support
 
-The CRE workflow can target multiple chains:
+The facilitator supports multiple chains with different settlement methods:
 
-| Chain                | Network ID             | Status          |
-| -------------------- | ---------------------- | --------------- |
-| **Base Sepolia**     | `base-sepolia`         | ✅ Supported     |
-| **Ethereum Sepolia** | `ethereum-sepolia`     | ✅ Supported     |
-| **Base Mainnet**     | `base-mainnet`         | 🔄 Coming Soon   |
-| **Ethereum Mainnet** | `ethereum-mainnet`     | 🔄 Coming Soon   |
-| **0G Chain**         | `0g-testnet`           | 🔄 Planned |
+| Chain                | Network ID             | Token      | Settlement Method | Status       |
+| -------------------- | ---------------------- | ---------- | ----------------- | ------------ |
+| **Base Sepolia**     | `base-sepolia`         | USDC       | EIP-3009 (gasless) | ✅ Supported  |
+| **Ethereum Sepolia** | `ethereum-sepolia`     | USDC       | EIP-3009 (gasless) | ✅ Supported  |
+| **Base Mainnet**     | `base-mainnet`         | USDC       | EIP-3009 (gasless) | ✅ Supported  |
+| **Ethereum Mainnet** | `ethereum-mainnet`     | USDC       | EIP-3009 (gasless) | ✅ Supported  |
+| **0G Mainnet**       | `0g-mainnet`           | W0G        | Relayer (requires approval) | ✅ Supported  |
 
+**Settlement Methods:**
+- **EIP-3009 (USDC)**: Gasless for payer, no approval needed, single signature
+- **Relayer (W0G)**: User approves once, facilitator executes transfers
 
-Add new chains by extending the `EVMClient` configuration inside the CRE workflow.
+Add new chains by extending the `CHAIN_CONFIG` and `TOKEN_ADDRESSES` in `settlement.ts`.
 
 ---
 
