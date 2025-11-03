@@ -37,40 +37,41 @@
 ================================================================================
 
    ┌─────────────────┐
-   │  Agent (Alice)  │
+   │  Agent (Charlie)│
    │  ERC-8004 ID    │
    └────────┬────────┘
             │
             │ 1. Makes request with x402 payment (EIP-712 signature)
             ▼
    ┌─────────────────────────┐
-   │   Resource Server       │
+   │Resource Server (Alice)  │
+   │  ERC-8004 ID            │
    └────────┬────────────────┘
             │
             │ 2. Forwards to DECENTRALIZED facilitator
             ▼
    ╔═════════════════════════════════════════════════════════════╗
-   ║  ✅ CHAOSCHAIN-x402 (Chainlink CRE)                        ║
-   ║  Decentralized Facilitator Workflow DON                    ║
+   ║  ✅ CHAOSCHAIN-x402 (Chainlink CRE)                         ║
+   ║  Decentralized Facilitator Workflow DON                     ║
    ║                                                             ║
-   ║  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐  ║
-   ║  │ Node A   │  │ Node B   │  │ Node C   │  │ Node D   │  ║
-   ║  │ verify() │  │ verify() │  │ verify() │  │ verify() │  ║
-   ║  └────┬─────┘  └────┬─────┘  └────┬─────┘  └────┬─────┘  ║
-   ║       └──────────────┴──────────────┴──────────────┘       ║
+   ║  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐     ║
+   ║  │ Node A   │  │ Node B   │  │ Node C   │  │ Node D   │     ║
+   ║  │ verify() │  │ verify() │  │ verify() │  │ verify() │     ║
+   ║  └────┬─────┘  └────┬─────┘  └────┬─────┘  └────┬─────┘     ║
+   ║       └──────────────┴──────────────┴──────────────┘        ║
    ║                         ▼                                   ║
-   ║              Byzantine Fault Tolerant (BFT)                ║
-   ║              Consensus Aggregation                         ║
+   ║              Byzantine Fault Tolerant (BFT)                 ║
+   ║              Consensus Aggregation                          ║
    ║                         ▼                                   ║
-   ║       Single Cryptographically Verified Result             ║
+   ║       Single Cryptographically Verified Result              ║
    ║                                                             ║
-   ║  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐  ║
-   ║  │ Node A   │  │ Node B   │  │ Node C   │  │ Node D   │  ║
-   ║  │ settle() │  │ settle() │  │ settle() │  │ settle() │  ║
-   ║  └────┬─────┘  └────┬─────┘  └────┬─────┘  └────┬─────┘  ║
-   ║       └──────────────┴──────────────┴──────────────┘       ║
+   ║  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐     ║
+   ║  │ Node A   │  │ Node B   │  │ Node C   │  │ Node D   │     ║
+   ║  │ settle() │  │ settle() │  │ settle() │  │ settle() │     ║
+   ║  └────┬─────┘  └────┬─────┘  └────┬─────┘  └────┬─────┘     ║
+   ║       └──────────────┴──────────────┴──────────────┘        ║
    ║                         ▼                                   ║
-   ║              Consensus on Settlement                       ║
+   ║              Consensus on Settlement                        ║
    ╚═══════════════════════════╤═════════════════════════════════╝
                                │
                                │ 3. Submits verified transaction + proof

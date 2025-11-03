@@ -276,7 +276,6 @@ A: Yes, call `approve(facilitatorAddress, 0)` to revoke.
 ## Support
 
 Need help with W0G payments?
-- **ChaosChain Discord**: [Join us](https://discord.gg/chaoschain)
 - **0G Community**: [Discord](https://discord.gg/0glabs)
 - **GitHub Issues**: https://github.com/ChaosChain/chaoschain-x402/issues
 
