@@ -2,6 +2,7 @@ import { createPublicClient, http, formatEther, formatUnits, defineChain } from 
 import { base, baseSepolia, mainnet, sepolia } from 'viem/chains';
 import { createClient } from '@supabase/supabase-js';
 import { privateKeyToAccount } from 'viem/accounts';
+import { skaleBaseSepolia } from '../config/networks/eip155-324705682';
 
 // Define 0G Mainnet
 const zgMainnet = defineChain({
@@ -28,6 +29,11 @@ const NETWORKS = {
   'ethereum-sepolia': {
     chain: sepolia,
     rpcUrl: process.env.ETHEREUM_SEPOLIA_RPC_URL,
+    tokenSymbol: 'USDC',
+  },
+  'skale-base-sepolia': {
+    chain: skaleBaseSepolia as any,
+    rpcUrl: process.env.SKALE_BASE_SEPOLIA_RPC_URL || 'https://base-sepolia-testnet.skalenodes.com/v1/jubilant-horrible-ancha',
     tokenSymbol: 'USDC',
   },
   'base-mainnet': {
