@@ -8,8 +8,8 @@
 import { createPublicClient, createWalletClient, http, type Chain } from 'viem';
 import { baseSepolia, sepolia } from 'viem/chains';
 import { privateKeyToAccount } from 'viem/accounts';
-import { zeroGTestnet } from './networks/eip-16600';
-import { skaleBaseSepolia } from './networks/eip-324705682';
+import { zeroGTestnet } from './networks/eip155-16600';
+import { skaleBaseSepolia } from './networks/eip155-324705682';
 
 // ============================================================================
 // NETWORK REGISTRY

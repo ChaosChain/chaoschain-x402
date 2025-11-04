@@ -2,7 +2,7 @@ import { createPublicClient, createWalletClient, http, parseUnits, formatUnits, 
 import { base, baseSepolia, mainnet, sepolia } from 'viem/chains';
 import { privateKeyToAccount } from 'viem/accounts';
 import type { VerifyRequest, SettleRequest } from '../types';
-import { skaleBaseSepolia } from '../config/networks/eip-324705682';
+import { skaleBaseSepolia } from '../config/networks/eip155-324705682';
 
 // ============================================================================
 // HELPER FUNCTIONS
