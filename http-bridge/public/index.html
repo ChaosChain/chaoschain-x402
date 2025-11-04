@@ -39,23 +39,17 @@
   <!-- Live Status -->
   <section id="status" class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
     <h2 class="text-3xl font-bold mb-6">Live Status</h2>
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
       <div class="card-beige p-6 rounded-lg shadow-md">
         <div class="flex items-center justify-between mb-4">
-          <h3 class="text-lg font-semibold accent-gold">Service</h3>
+          <h3 class="text-lg font-semibold accent-gold">Service Health</h3>
           <span id="service-status" class="px-3 py-1 rounded-full text-white text-sm status-operational">Operational</span>
         </div>
         <p class="text-sm text-gray-600">Last checked: <span id="last-checked">Loading...</span></p>
       </div>
       <div class="card-beige p-6 rounded-lg shadow-md">
-        <h3 class="text-lg font-semibold mb-4 accent-gold">Supported Networks</h3>
-        <ul id="networks-list" class="text-sm text-gray-600 space-y-1">
-          <li>Loading...</li>
-        </ul>
-      </div>
-      <div class="card-beige p-6 rounded-lg shadow-md">
-        <h3 class="text-lg font-semibold mb-4 accent-gold">Gas Balances</h3>
-        <ul id="gas-balances" class="text-sm text-gray-600 space-y-1">
+        <h3 class="text-lg font-semibold mb-4 accent-gold">Network Status</h3>
+        <ul id="networks-list" class="text-sm text-gray-600 space-y-2">
           <li>Loading...</li>
         </ul>
       </div>
@@ -360,25 +354,18 @@ sdk = ChaosChainAgentSDK(
         // Update last checked
         document.getElementById('last-checked').textContent = new Date().toLocaleTimeString();
         
-        // Update gas balances
-        const gasBalancesEl = document.getElementById('gas-balances');
+        // Update network status (RPC health only, no balances)
+        const networksEl = document.getElementById('networks-list');
         if (health.networks) {
-          gasBalancesEl.innerHTML = Object.entries(health.networks)
+          networksEl.innerHTML = Object.entries(health.networks)
             .map(([network, data]) => {
-              const balance = data.gasBalance || 'N/A';
-              const rpc = data.rpcHealthy ? '✅' : '❌';
-              return `<li>${network}: ${balance} ${rpc}</li>`;
+              const status = data.rpcHealthy ? '✅' : '❌';
+              const statusText = data.rpcHealthy ? 'Operational' : 'Degraded';
+              const token = data.token || '';
+              return `<li class="flex items-center justify-between"><span>${network} (${token})</span><span class="font-semibold">${status} ${statusText}</span></li>`;
             })
             .join('');
         }
-        
-        // Fetch supported networks
-        const supportedRes = await fetch('/supported');
-        const supported = await supportedRes.json();
-        
-        const networksEl = document.getElementById('networks-list');
-        const uniqueNetworks = [...new Set(supported.kinds.map(k => k.network))];
-        networksEl.innerHTML = uniqueNetworks.map(n => `<li>✅ ${n}</li>`).join('');
         
       } catch (error) {
         console.error('Failed to fetch status:', error);

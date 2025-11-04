@@ -105,7 +105,6 @@ export async function checkHealth() {
   } catch (e: any) {
     return {
       healthy: false,
-      facilitatorAddress: null,
       facilitatorMode: 'managed',
       networks: {},
       error: `Facilitator configuration error: ${e.message}`,
@@ -139,11 +138,23 @@ export async function checkHealth() {
   const anyNetworkHealthy = Object.values(networks).some((n: any) => n.rpcHealthy);
   const healthy = supabaseHealthy && anyNetworkHealthy;
 
+  // Create public-safe network status (no gas balances or addresses)
+  const publicNetworkStatus = Object.fromEntries(
+    Object.entries(networks).map(([name, data]: [string, any]) => [
+      name,
+      {
+        rpcHealthy: data.rpcHealthy,
+        token: data.token,
+        status: data.rpcHealthy ? 'operational' : 'degraded',
+        ...(data.error && { error: data.error })
+      }
+    ])
+  );
+
   return {
     healthy,
-    facilitatorAddress,
     facilitatorMode: 'managed',
-    networks,
+    networks: publicNetworkStatus,
     timestamp: new Date().toISOString(),
   };
 }
