@@ -93,9 +93,25 @@ async function checkNetwork(networkName: string, config: any, facilitatorAddress
 }
 
 export async function checkHealth() {
-  const facilitatorAddress = privateKeyToAccount(
-    process.env.FACILITATOR_PRIVATE_KEY! as `0x${string}`
-  ).address;
+  // Get facilitator address from private key if available
+  let facilitatorAddress: string;
+  try {
+    const privateKey = process.env.FACILITATOR_PRIVATE_KEY;
+    if (!privateKey) {
+      throw new Error('FACILITATOR_PRIVATE_KEY not set');
+    }
+    const pkWithPrefix = privateKey.startsWith('0x') ? privateKey : `0x${privateKey}`;
+    facilitatorAddress = privateKeyToAccount(pkWithPrefix as `0x${string}`).address;
+  } catch (e: any) {
+    return {
+      healthy: false,
+      facilitatorAddress: null,
+      facilitatorMode: 'managed',
+      networks: {},
+      error: `Facilitator configuration error: ${e.message}`,
+      timestamp: new Date().toISOString(),
+    };
+  }
 
   // Check Supabase (optional)
   let supabaseHealthy = true;

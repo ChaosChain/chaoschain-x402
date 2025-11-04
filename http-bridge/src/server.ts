@@ -1,7 +1,9 @@
 import Fastify from "fastify";
 import cors from "@fastify/cors";
+import fastifyStatic from "@fastify/static";
 import { config as dotenvConfig } from 'dotenv';
 import { parseUnits } from 'viem';
+import path from 'path';
 import {
   type VerifyRequest,
   type VerifyResponse,
@@ -179,10 +181,10 @@ async function forwardSettleToCRE(request: SettleRequest): Promise<SettleRespons
 // ============================================================================
 
 /**
- * GET /
- * Health check and service information
+ * GET /api/info
+ * Service information API endpoint (moved from root to avoid conflict with static serving)
  */
-server.get("/", async () => {
+server.get("/api/info", async () => {
   const info: any = {
     service: "ChaosChain x402 Facilitator",
     version: "0.1.0",
@@ -537,6 +539,17 @@ const start = async () => {
     await server.register(cors, {
       origin: true, // Allow all origins in development
       methods: ["GET", "POST", "OPTIONS"],
+    });
+    
+    // Register static file serving for the public directory
+    // Use path relative to current working directory for simplicity
+    const publicPath = path.join(process.cwd(), 'dist', 'public');
+    
+    server.log.info(`Serving static files from: ${publicPath}`);
+    
+    await server.register(fastifyStatic, {
+      root: publicPath,
+      prefix: '/', // Serve from root
     });
     
     await server.listen({ port: config.port, host: "0.0.0.0" });
