@@ -59,7 +59,8 @@ Returns supported payment schemes and networks (per x402 spec)
 {
   "kinds": [
     { "scheme": "exact", "network": "base-sepolia" },
-    { "scheme": "exact", "network": "ethereum-sepolia" }
+    { "scheme": "exact", "network": "ethereum-sepolia" },
+    { "scheme": "exact", "network": "skale-base-sepolia" }
   ]
 }
 ```
@@ -140,6 +141,7 @@ TREASURY_ADDRESS=0x...            # Fee collection address
 BASE_SEPOLIA_RPC_URL=https://...
 BASE_MAINNET_RPC_URL=https://...
 ETHEREUM_MAINNET_RPC_URL=https://...
+SKALE_BASE_SEPOLIA_RPC_URL=https://...
 
 # Decentralized mode (CRE) - in development
 CRE_MODE=simulate                 # simulate | remote

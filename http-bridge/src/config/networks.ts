@@ -8,61 +8,8 @@
 import { createPublicClient, createWalletClient, http, type Chain } from 'viem';
 import { baseSepolia, sepolia } from 'viem/chains';
 import { privateKeyToAccount } from 'viem/accounts';
-
-// ============================================================================
-// NETWORK DEFINITIONS
-// ============================================================================
-
-/**
- * 0G Network Testnet Configuration
- * Docs: https://docs.0g.ai/
- */
-export const zeroGTestnet = {
-  id: 16600,
-  name: '0G Galileo Testnet',
-  nativeCurrency: {
-    decimals: 18,
-    name: '0G',
-    symbol: 'A0GI',
-  },
-  rpcUrls: {
-    default: {
-      http: [process.env.ZG_TESTNET_RPC_URL || 'https://rpc-testnet.0g.ai'],
-    },
-    public: {
-      http: [process.env.ZG_TESTNET_RPC_URL || 'https://rpc-testnet.0g.ai'],
-    },
-  },
-  blockExplorers: {
-    default: { name: '0G Explorer', url: 'https://scan-testnet.0g.ai' },
-  },
-  testnet: true,
-} as const satisfies Chain;
-
-/**
- * 0G Network Mainnet Configuration (future)
- */
-export const zeroGMainnet = {
-  id: 16600, // Update with actual mainnet chain ID
-  name: '0G Mainnet',
-  nativeCurrency: {
-    decimals: 18,
-    name: '0G',
-    symbol: 'A0GI',
-  },
-  rpcUrls: {
-    default: {
-      http: [process.env.ZG_MAINNET_RPC_URL || 'https://rpc.0g.ai'],
-    },
-    public: {
-      http: [process.env.ZG_MAINNET_RPC_URL || 'https://rpc.0g.ai'],
-    },
-  },
-  blockExplorers: {
-    default: { name: '0G Explorer', url: 'https://scan.0g.ai' },
-  },
-  testnet: false,
-} as const satisfies Chain;
+import { zeroGTestnet } from './networks/eip-16600';
+import { skaleBaseSepolia } from './networks/eip-324705682';
 
 // ============================================================================
 // NETWORK REGISTRY
@@ -75,6 +22,7 @@ export const NETWORK_REGISTRY: Record<string, Chain> = {
   'base-sepolia': baseSepolia,
   'ethereum-sepolia': sepolia,
   '0g-testnet': zeroGTestnet,
+  'skale-base-sepolia': skaleBaseSepolia
   // Future networks:
   // 'base-mainnet': base,
   // 'ethereum-mainnet': mainnet,
@@ -90,6 +38,7 @@ export const RPC_URLS: Record<string, string> = {
   'base-sepolia': process.env.BASE_SEPOLIA_RPC_URL || 'https://sepolia.base.org',
   'ethereum-sepolia': process.env.ETHEREUM_SEPOLIA_RPC_URL || 'https://ethereum-sepolia.blockpi.network/v1/rpc/public',
   '0g-testnet': process.env.ZG_TESTNET_RPC_URL || 'https://rpc-testnet.0g.ai',
+  'skale-base-sepolia': process.env.SKALE_BASE_SEPOLIA_RPC_URL || 'https://base-sepolia-testnet.skalenodes.com/v1/jubilant-horrible-ancha',
 };
 
 // ============================================================================
@@ -107,6 +56,7 @@ export const TOKEN_REGISTRY: Record<string, Record<string, string>> = {
   'usdc': {
     'base-sepolia': '0x036CbD53842c5426634e7929541eC2318f3dCF7e',
     'ethereum-sepolia': '0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238',
+    'skale-base-sepolia': '0x2e08028E3C4c2356572E096d8EF835cD5C6030bD',
     '0g-testnet': '0x0000000000000000000000000000000000000000', // If USDC exists on 0G
   },
   
@@ -120,6 +70,7 @@ export const TOKEN_REGISTRY: Record<string, Record<string, string>> = {
   'eth': {
     'ethereum-sepolia': '0x0000000000000000000000000000000000000000',
     'base-sepolia': '0x0000000000000000000000000000000000000000',
+    'skale-base-sepolia': '0x0000000000000000000000000000000000000000',
   },
 };
 
@@ -130,6 +81,7 @@ export const TOKEN_DECIMALS: Record<string, number> = {
   'usdc': 6,
   'eth': 18,
   '0g': 18,
+  'credit': 18,
 };
 
 // ============================================================================
