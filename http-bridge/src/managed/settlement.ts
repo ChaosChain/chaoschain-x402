@@ -2,6 +2,7 @@ import { createPublicClient, createWalletClient, http, parseUnits, formatUnits, 
 import { base, baseSepolia, mainnet, sepolia } from 'viem/chains';
 import { privateKeyToAccount } from 'viem/accounts';
 import type { VerifyRequest, SettleRequest } from '../types';
+import { skaleBaseSepolia } from '../config/networks/eip155-324705682';
 
 // ============================================================================
 // HELPER FUNCTIONS
@@ -126,6 +127,7 @@ const CHAIN_CONFIG = {
   'base-mainnet': { chain: base, rpcUrl: process.env.BASE_MAINNET_RPC_URL!, confirmations: 2 },
   'ethereum-mainnet': { chain: mainnet, rpcUrl: process.env.ETHEREUM_MAINNET_RPC_URL!, confirmations: 3 },
   '0g-mainnet': { chain: zgMainnet, rpcUrl: process.env.ZG_MAINNET_RPC_URL || 'https://evmrpc.0g.ai', confirmations: 5 },
+  'skale-base-sepolia': { chain: skaleBaseSepolia, rpcUrl: process.env.SKALE_BASE_SEPOLIA_RPC_URL!, confirmations: 1 }, // SKALE Chains have deterministic finality
 } as const;
 
 // Token contract addresses (USDC + W0G)
@@ -135,6 +137,7 @@ const TOKEN_ADDRESSES: Record<string, Address> = {
   'ethereum-sepolia': '0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238',
   'base-mainnet': '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
   'ethereum-mainnet': '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48',
+  'skale-base-sepolia': '0x2e08028E3C4c2356572E096d8EF835cD5C6030bD',
   // W0G address (Standard ERC20 - uses relayer pattern)
   '0g-mainnet': '0x1Cd0690fF9a693f5EF2dD976660a8dAFc81A109c',
 };
@@ -145,6 +148,7 @@ const TOKEN_INFO: Record<string, { symbol: string; decimals: number; supportsEIP
   'ethereum-sepolia': { symbol: 'USDC', decimals: 6, supportsEIP3009: true },
   'base-mainnet': { symbol: 'USDC', decimals: 6, supportsEIP3009: true },
   'ethereum-mainnet': { symbol: 'USDC', decimals: 6, supportsEIP3009: true },
+  'skale-base-sepolia': { symbol: 'USDC', decimals: 6, supportsEIP3009: true },
   '0g-mainnet': { symbol: 'W0G', decimals: 18, supportsEIP3009: false },
 };
 

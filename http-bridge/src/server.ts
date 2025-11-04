@@ -254,6 +254,11 @@ server.get("/supported", async () => {
         scheme: "exact",
         network: "0g-mainnet",
       },
+      {
+        x402Version: 1,
+        scheme: "exact",
+        network: "skale-base-sepolia",
+      },
     ],
   };
 });
