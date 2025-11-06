@@ -571,16 +571,32 @@ async function settleWithRelayer(
       args: [payerAddress, treasuryAddress, feeAmount],
     });
 
-    // Wait for confirmation
-    const receipt = await publicClient.waitForTransactionReceipt({
-      hash: hashMerchant,
-      confirmations: chainConfig.confirmations,
-    });
+    // Wait for BOTH transactions to confirm
+    const [receiptMerchant, receiptFee] = await Promise.all([
+      publicClient.waitForTransactionReceipt({
+        hash: hashMerchant,
+        confirmations: chainConfig.confirmations,
+      }),
+      publicClient.waitForTransactionReceipt({
+        hash: hashFee,
+        confirmations: chainConfig.confirmations,
+      }),
+    ]);
+
+    // Check both transactions succeeded
+    if (receiptMerchant.status !== 'success' || receiptFee.status !== 'success') {
+      return {
+        txHash: hashMerchant,
+        txHashFee: hashFee,
+        status: 'partial_settlement',
+        confirmations: chainConfig.confirmations,
+      };
+    }
 
     return {
       txHash: hashMerchant,
       txHashFee: hashFee,
-      status: receipt.status === 'success' ? 'confirmed' : 'failed',
+      status: 'confirmed',
       confirmations: chainConfig.confirmations,
     };
   } catch (error) {

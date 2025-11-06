@@ -210,35 +210,11 @@ async function requirePayment(amount: number, description: string) {
         });
       }
 
-      // Settle payment
-      const settleResponse = await fetch('https://facilitator.chaoscha.in/settle', {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Idempotency-Key': `${req.path}_${paymentHeader.nonce}`
-        },
-        body: JSON.stringify({
-          x402Version: 1,
-          paymentHeader,
-          paymentRequirements: requirements,
-          agentId: process.env.AGENT_ID // Optional: for ERC-8004
-        })
-      });
-
-      const settleData = await settleResponse.json();
-
-      if (!settleData.success) {
-        return res.status(402).json({ error: 'Settlement failed' });
-      }
-
-      // Store payment info for this request
+      // Store payment info for settlement after request processing
       req.payment = {
-        txHash: settleData.txHash,
-        amount: settleData.amount,
-        fee: settleData.fee,
-        net: settleData.net,
-        evidenceHash: settleData.evidenceHash,
-        proofOfAgency: settleData.proofOfAgency
+        header: paymentHeader,
+        requirements: requirements,
+        verified: true
       };
       
       next();
@@ -252,21 +228,92 @@ async function requirePayment(amount: number, description: string) {
   };
 }
 
+// Helper function to settle payment after successful response
+async function settlePayment(paymentInfo: any) {
+  const settleResponse = await fetch('https://facilitator.chaoscha.in/settle', {
+    method: 'POST',
+    headers: { 
+      'Content-Type': 'application/json',
+      'Idempotency-Key': `${paymentInfo.requirements.resource}_${paymentInfo.header.nonce}`
+    },
+    body: JSON.stringify({
+      x402Version: 1,
+      paymentHeader: paymentInfo.header,
+      paymentRequirements: paymentInfo.requirements,
+      agentId: process.env.AGENT_ID
+    })
+  });
+
+  return await settleResponse.json();
+}
+
 // Use the middleware
 app.get('/api/analyze', requirePayment(1.00, 'AI Analysis'), async (req, res) => {
-  // Payment verified - provide service
-  res.json({
-    result: 'Analysis complete',
-    payment_receipt: req.payment
-  });
+  try {
+    // 1. Process the request
+    const result = {
+      result: 'Analysis complete',
+      data: { confidence: 0.95 }
+    };
+    
+    // 2. If processing succeeds, settle the payment
+    if (req.payment?.verified) {
+      const settlement = await settlePayment(req.payment);
+      
+      if (!settlement.success) {
+        return res.status(402).json({ 
+          error: 'Payment settlement failed',
+          details: 'Service completed but payment failed'
+        });
+      }
+      
+      // 3. Return result with payment receipt
+      return res.json({
+        ...result,
+        payment_receipt: {
+          txHash: settlement.txHash,
+          amount: settlement.amount,
+          fee: settlement.fee,
+          net: settlement.net
+        }
+      });
+    }
+    
+    // No payment needed (shouldn't reach here with middleware)
+    return res.json(result);
+    
+  } catch (error: any) {
+    // 4. If processing fails, DON'T settle
+    return res.status(500).json({ 
+      error: 'Service failed',
+      message: error.message 
+    });
+  }
 });
 
 app.get('/api/generate-image', requirePayment(0.50, 'Image Generation'), async (req, res) => {
-  res.json({
-    result: 'Image generated',
-    imageUrl: 'https://example.com/image.png',
-    payment_receipt: req.payment
-  });
+  try {
+    // Process request
+    const result = {
+      result: 'Image generated',
+      imageUrl: 'https://example.com/image.png'
+    };
+    
+    // Settle after successful processing
+    if (req.payment?.verified) {
+      const settlement = await settlePayment(req.payment);
+      if (settlement.success) {
+        result.payment_receipt = {
+          txHash: settlement.txHash,
+          amount: settlement.amount
+        };
+      }
+    }
+    
+    return res.json(result);
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message });
+  }
 });
 
 app.listen(3000, () => {
@@ -329,7 +376,7 @@ async def analyze(x_payment: str = Header(None, alias="X-PAYMENT")):
             }
         )
     
-    # Verify and settle payment via facilitator
+    # Verify payment and process request
     try:
         requirements = sdk.x402_payment_manager.create_payment_requirements(
             to_agent="MyAIAgent",
@@ -337,7 +384,7 @@ async def analyze(x_payment: str = Header(None, alias="X-PAYMENT")):
             service_description="AI Analysis Service"
         )
         
-        # Verify payment with facilitator
+        # 1. Verify payment with facilitator
         verify_result = sdk.x402_payment_manager.verify_payment_with_facilitator(
             x402_payment={"x_payment_header": x_payment},
             payment_requirements=requirements
@@ -349,32 +396,39 @@ async def analyze(x_payment: str = Header(None, alias="X-PAYMENT")):
                 detail={"error": "Invalid payment", "reason": verify_result.get("invalidReason")}
             )
         
-        # Settle payment (facilitator executes USDC transfer)
+        # 2. Process the request (your service logic)
+        result = {
+            "result": "Analysis complete",
+            "data": {"confidence": 0.95, "insights": "Sample analysis..."}
+        }
+        
+        # 3. If processing succeeds, settle the payment
         settlement = sdk.x402_payment_manager.settle_payment_with_facilitator(
             x402_payment={"x_payment_header": x_payment},
             payment_requirements=requirements
         )
         
         if not settlement.get("success"):
-            raise HTTPException(402, detail={"error": "Settlement failed"})
+            raise HTTPException(402, detail={
+                "error": "Payment settlement failed",
+                "details": "Service completed but payment failed"
+            })
         
-        # Payment verified - provide service
+        # 4. Return result with payment receipt
         return {
-            "result": "Analysis complete",
-            "data": {"confidence": 0.95, "insights": "Sample analysis..."},
+            **result,
             "payment_receipt": {
                 "txHash": settlement.get("txHash"),
                 "amount": settlement.get("amount"),
                 "fee": settlement.get("fee"),
-                "net": settlement.get("net"),
-                "evidenceHash": settlement.get("evidenceHash"),
-                "proofOfAgency": settlement.get("proofOfAgency")
+                "net": settlement.get("net")
             }
         }
         
     except HTTPException:
         raise
     except Exception as e:
+        # If service processing fails, don't settle
         raise HTTPException(500, detail={"error": str(e)})
 
 @app.get("/api/generate-image")
@@ -401,7 +455,7 @@ async def generate_image(x_payment: str = Header(None, alias="X-PAYMENT")):
             }
         )
     
-    # Same pattern as analyze endpoint
+    # Correct x402 flow: Verify → Process → Settle
     try:
         requirements = sdk.x402_payment_manager.create_payment_requirements(
             to_agent="MyAIAgent",
@@ -409,6 +463,7 @@ async def generate_image(x_payment: str = Header(None, alias="X-PAYMENT")):
             service_description="Image Generation"
         )
         
+        # 1. Verify payment
         verify_result = sdk.x402_payment_manager.verify_payment_with_facilitator(
             x402_payment={"x_payment_header": x_payment},
             payment_requirements=requirements
@@ -417,6 +472,13 @@ async def generate_image(x_payment: str = Header(None, alias="X-PAYMENT")):
         if not verify_result.get("isValid"):
             raise HTTPException(402, detail={"error": "Invalid payment"})
         
+        # 2. Process request (your service logic)
+        result = {
+            "result": "Image generated",
+            "imageUrl": "https://example.com/generated-image.png"
+        }
+        
+        # 3. If processing succeeds, settle payment
         settlement = sdk.x402_payment_manager.settle_payment_with_facilitator(
             x402_payment={"x_payment_header": x_payment},
             payment_requirements=requirements
@@ -425,9 +487,9 @@ async def generate_image(x_payment: str = Header(None, alias="X-PAYMENT")):
         if not settlement.get("success"):
             raise HTTPException(402, detail={"error": "Settlement failed"})
         
+        # 4. Return result with receipt
         return {
-            "result": "Image generated",
-            "imageUrl": "https://example.com/generated-image.png",
+            **result,
             "payment_receipt": {
                 "txHash": settlement.get("txHash"),
                 "amount": settlement.get("amount"),
