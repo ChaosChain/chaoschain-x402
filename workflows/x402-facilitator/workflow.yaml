@@ -4,21 +4,29 @@ local-simulation:
   workflow-artifacts:
     workflow-path: "./main.ts"
     config-path: "./config.json"
-    secrets-path: "../../secrets.yaml"
+    secrets-path: "./secrets.yaml"
+
+local-production:
+  user-workflow:
+    workflow-name: "x402-facilitator-production"
+  workflow-artifacts:
+    workflow-path: "./main-production.ts"
+    config-path: "./config.production.json"
+    secrets-path: "./secrets.yaml"
 
 staging:
   user-workflow:
-    workflow-name: "x402-facilitator"
+    workflow-name: "x402-facilitator-staging"
   workflow-artifacts:
-    workflow-path: "./main.ts"
-    config-path: "./config.json"
-    secrets-path: "../../secrets.yaml"
+    workflow-path: "./main-production.ts"
+    config-path: "./config.production.json"
+    secrets-path: "./secrets.yaml"
 
 production:
   user-workflow:
-    workflow-name: "x402-facilitator"
+    workflow-name: "x402-facilitator-production"
   workflow-artifacts:
-    workflow-path: "./main.ts"
-    config-path: "./config.json"
-    secrets-path: "../../secrets.yaml"
+    workflow-path: "./main-production.ts"
+    config-path: "./config.production.json"
+    secrets-path: "./secrets.yaml"
 

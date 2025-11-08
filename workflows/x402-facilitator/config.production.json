@@ -1,0 +1,13 @@
+{
+  "mode": "production",
+  "supportedNetworks": [
+    "base-sepolia",
+    "ethereum-sepolia",
+    "base-mainnet",
+    "ethereum-mainnet"
+  ],
+  "supportedSchemes": ["exact"],
+  "confirmations": 2,
+  "enableProofOfAgency": false
+}
+

@@ -1,0 +1,39 @@
+[
+  {
+    "inputs": [
+      { "name": "payer", "type": "address" },
+      { "name": "paymentTxHash", "type": "bytes32" },
+      { "name": "resource", "type": "string" },
+      { "name": "agentId", "type": "bytes32" }
+    ],
+    "name": "recordPaymentEvidence",
+    "outputs": [{ "name": "evidenceId", "type": "bytes32" }],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [{ "name": "evidenceId", "type": "bytes32" }],
+    "name": "getEvidence",
+    "outputs": [
+      { "name": "payer", "type": "address" },
+      { "name": "paymentTxHash", "type": "bytes32" },
+      { "name": "resource", "type": "string" },
+      { "name": "agentId", "type": "bytes32" },
+      { "name": "timestamp", "type": "uint256" }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [{ "name": "agentId", "type": "bytes32" }],
+    "name": "getAgentReputation",
+    "outputs": [
+      { "name": "totalPayments", "type": "uint256" },
+      { "name": "totalValue", "type": "uint256" },
+      { "name": "averageValue", "type": "uint256" }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  }
+]
+
