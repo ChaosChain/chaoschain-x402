@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { checkTransactionFinality } from '../managed/settlement';
+import { getConfirmations } from '../config/chains';
 
 // Lazy load Supabase (optional for testing)
 function getSupabaseClient() {
@@ -22,7 +23,7 @@ export async function confirmPendingTransactions() {
     // Skip confirmation if no Supabase (OK for testing)
     return;
   }
-  
+
   const { data: pending } = await supabase
     .from('transactions')
     .select('*')
@@ -33,10 +34,11 @@ export async function confirmPendingTransactions() {
 
   for (const tx of pending) {
     try {
+      const confirmationsRequired = getConfirmations(tx.chain);
       const result = await checkTransactionFinality(
         tx.tx_hash,
         tx.chain,
-        tx.chain.includes('base') ? 2 : 3
+        confirmationsRequired
       );
 
       if (result.confirmed) {
@@ -65,7 +67,7 @@ export async function confirmPendingTransactions() {
 export function startConfirmer() {
   // Run immediately
   confirmPendingTransactions().catch(console.error);
-  
+
   // Run every 30 seconds
   setInterval(() => {
     confirmPendingTransactions().catch(console.error);

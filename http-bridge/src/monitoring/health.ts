@@ -1,57 +1,7 @@
 import { createPublicClient, http, formatEther, formatUnits, defineChain } from 'viem';
-import { base, baseSepolia, mainnet, sepolia } from 'viem/chains';
 import { createClient } from '@supabase/supabase-js';
 import { privateKeyToAccount } from 'viem/accounts';
-import { skaleBaseSepolia } from '../config/networks/eip155-324705682';
-
-// Define 0G Mainnet
-const zgMainnet = defineChain({
-  id: 16661,
-  name: '0G Mainnet',
-  network: '0g',
-  nativeCurrency: { decimals: 18, name: '0G', symbol: '0G' },
-  rpcUrls: {
-    default: { http: ['https://evmrpc.0g.ai'] },
-    public: { http: ['https://evmrpc.0g.ai'] },
-  },
-  blockExplorers: {
-    default: { name: '0G Explorer', url: 'https://chainscan.0g.ai' },
-  },
-});
-
-// Network configurations
-const NETWORKS = {
-  'base-sepolia': {
-    chain: baseSepolia,
-    rpcUrl: process.env.BASE_SEPOLIA_RPC_URL || 'https://sepolia.base.org',
-    tokenSymbol: 'USDC',
-  },
-  'ethereum-sepolia': {
-    chain: sepolia,
-    rpcUrl: process.env.ETHEREUM_SEPOLIA_RPC_URL,
-    tokenSymbol: 'USDC',
-  },
-  'skale-base-sepolia': {
-    chain: skaleBaseSepolia as any,
-    rpcUrl: process.env.SKALE_BASE_SEPOLIA_RPC_URL || 'https://base-sepolia-testnet.skalenodes.com/v1/jubilant-horrible-ancha',
-    tokenSymbol: 'USDC',
-  },
-  'base-mainnet': {
-    chain: base,
-    rpcUrl: process.env.BASE_MAINNET_RPC_URL,
-    tokenSymbol: 'USDC',
-  },
-  'ethereum-mainnet': {
-    chain: mainnet,
-    rpcUrl: process.env.ETHEREUM_MAINNET_RPC_URL,
-    tokenSymbol: 'USDC',
-  },
-  '0g-mainnet': {
-    chain: zgMainnet,
-    rpcUrl: process.env.ZG_MAINNET_RPC_URL || 'https://evmrpc.0g.ai',
-    tokenSymbol: 'W0G',
-  },
-};
+import { CHAINS, getPublicClient, getChainConfig } from '../config/chains';
 
 // Lazy load Supabase (optional for testing)
 function getSupabaseClient() {
@@ -69,30 +19,27 @@ async function checkNetwork(networkName: string, config: any, facilitatorAddress
     return {
       rpcHealthy: false,
       gasBalance: '0',
-      token: config.tokenSymbol,
+      token: config.defaultToken.toUpperCase(),
       error: 'RPC URL not configured',
     };
   }
 
   try {
-    const client = createPublicClient({
-      chain: config.chain,
-      transport: http(config.rpcUrl),
-    });
+    const client = getPublicClient(networkName);
 
     // Check if RPC is reachable
     const balance = await client.getBalance({ address: facilitatorAddress as `0x${string}` });
-    
+
     return {
       rpcHealthy: true,
       gasBalance: formatEther(balance),
-      token: config.tokenSymbol,
+      token: config.defaultToken.toUpperCase(),
     };
   } catch (e: any) {
     return {
       rpcHealthy: false,
       gasBalance: '0',
-      token: config.tokenSymbol,
+      token: config.defaultToken.toUpperCase(),
       error: e.message || 'RPC check failed',
     };
   }
@@ -132,7 +79,7 @@ export async function checkHealth() {
 
   // Check all networks in parallel
   const networkChecks = await Promise.all(
-    Object.entries(NETWORKS).map(async ([name, config]) => {
+    Object.entries(CHAINS).map(async ([name, config]) => {
       const result = await checkNetwork(name, config, facilitatorAddress);
       return [name, result];
     })
