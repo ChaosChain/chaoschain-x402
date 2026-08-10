@@ -1,8 +1,13 @@
-import { createPublicClient, createWalletClient, http, parseUnits, formatUnits, type Address, type Hash, keccak256, toHex, defineChain } from 'viem';
-import { base, baseSepolia, mainnet, sepolia } from 'viem/chains';
+import { parseUnits, formatUnits, type Address, type Hash, keccak256, toHex } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import type { VerifyRequest, SettleRequest } from '../types';
-import { skaleBaseSepolia } from '../config/networks/eip155-324705682';
+import {
+  getTokenAddress,
+  getTokenConfig,
+  getPublicClient,
+  getWalletClient,
+  getConfirmations
+} from '../config/chains';
 
 // ============================================================================
 // HELPER FUNCTIONS
@@ -16,11 +21,11 @@ import { skaleBaseSepolia } from '../config/networks/eip155-324705682';
  */
 function parsePaymentHeader(header: string | any) {
   let parsed = header;
-  
+
   if (typeof header === 'string') {
     parsed = JSON.parse(Buffer.from(header, 'base64').toString());
   }
-  
+
   // Normalize to consistent format
   if (parsed.payload?.authorization) {
     // ChaosChain SDK format (nested authorization)
@@ -66,7 +71,7 @@ function parsePaymentHeader(header: string | any) {
       s: parsed.s,
     };
   }
-  
+
   throw new Error('Invalid payment header format');
 }
 
@@ -79,78 +84,20 @@ function splitSignature(sig: string | { v?: number; r?: string; s?: string }) {
   if (typeof sig === 'object' && sig.v && sig.r && sig.s) {
     return { v: sig.v, r: sig.r, s: sig.s };
   }
-  
+
   // Parse combined signature (0x + 65 bytes)
   const signature = typeof sig === 'string' ? sig : (sig as any).signature;
   if (!signature) {
     throw new Error('Missing signature');
   }
-  
+
   const cleanSig = signature.startsWith('0x') ? signature.slice(2) : signature;
   const r = '0x' + cleanSig.slice(0, 64);
   const s = '0x' + cleanSig.slice(64, 128);
   const v = parseInt(cleanSig.slice(128, 130), 16);
-  
+
   return { v, r, s };
 }
-
-// ============================================================================
-// CHAIN CONFIGURATION
-// ============================================================================
-
-// Define 0G Mainnet
-const zgMainnet = defineChain({
-  id: 16661,
-  name: '0G Mainnet',
-  network: '0g',
-  nativeCurrency: {
-    decimals: 18,
-    name: '0G',
-    symbol: '0G',
-  },
-  rpcUrls: {
-    default: {
-      http: ['https://evmrpc.0g.ai'],
-    },
-    public: {
-      http: ['https://evmrpc.0g.ai'],
-    },
-  },
-  blockExplorers: {
-    default: { name: '0G Explorer', url: 'https://chainscan.0g.ai' },
-  },
-});
-
-const CHAIN_CONFIG = {
-  'base-sepolia': { chain: baseSepolia, rpcUrl: process.env.BASE_SEPOLIA_RPC_URL!, confirmations: 2 },
-  'ethereum-sepolia': { chain: sepolia, rpcUrl: process.env.ETHEREUM_SEPOLIA_RPC_URL!, confirmations: 3 },
-  'base-mainnet': { chain: base, rpcUrl: process.env.BASE_MAINNET_RPC_URL!, confirmations: 2 },
-  'ethereum-mainnet': { chain: mainnet, rpcUrl: process.env.ETHEREUM_MAINNET_RPC_URL!, confirmations: 3 },
-  '0g-mainnet': { chain: zgMainnet, rpcUrl: process.env.ZG_MAINNET_RPC_URL || 'https://evmrpc.0g.ai', confirmations: 5 },
-  'skale-base-sepolia': { chain: skaleBaseSepolia, rpcUrl: process.env.SKALE_BASE_SEPOLIA_RPC_URL!, confirmations: 1 }, // SKALE Chains have deterministic finality
-} as const;
-
-// Token contract addresses (USDC + W0G)
-const TOKEN_ADDRESSES: Record<string, Address> = {
-  // USDC addresses (EIP-3009 compliant)
-  'base-sepolia': '0x036CbD53842c5426634e7929541eC2318f3dCF7e',
-  'ethereum-sepolia': '0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238',
-  'base-mainnet': '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
-  'ethereum-mainnet': '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48',
-  'skale-base-sepolia': '0x2e08028E3C4c2356572E096d8EF835cD5C6030bD',
-  // W0G address (Standard ERC20 - uses relayer pattern)
-  '0g-mainnet': '0x1Cd0690fF9a693f5EF2dD976660a8dAFc81A109c',
-};
-
-// Token metadata
-const TOKEN_INFO: Record<string, { symbol: string; decimals: number; supportsEIP3009: boolean }> = {
-  'base-sepolia': { symbol: 'USDC', decimals: 6, supportsEIP3009: true },
-  'ethereum-sepolia': { symbol: 'USDC', decimals: 6, supportsEIP3009: true },
-  'base-mainnet': { symbol: 'USDC', decimals: 6, supportsEIP3009: true },
-  'ethereum-mainnet': { symbol: 'USDC', decimals: 6, supportsEIP3009: true },
-  'skale-base-sepolia': { symbol: 'USDC', decimals: 6, supportsEIP3009: true },
-  '0g-mainnet': { symbol: 'W0G', decimals: 18, supportsEIP3009: false },
-};
 
 // ============================================================================
 // TOKEN ABI (EIP-3009 + Standard ERC-20)
@@ -240,48 +187,27 @@ export async function verifyPaymentManaged(
   invalidReason: string | null;
   decimals?: number;
 }> {
-  const { network } = request.paymentRequirements;
-  const chainConfig = CHAIN_CONFIG[network as keyof typeof CHAIN_CONFIG];
-
-  if (!chainConfig) {
-    return {
-      isValid: false,
-      invalidReason: `Unsupported network: ${network}`,
-    };
-  }
-
-  const publicClient = createPublicClient({
-    chain: chainConfig.chain,
-    transport: http(chainConfig.rpcUrl),
-  });
-
   try {
+    const { network, asset } = request.paymentRequirements;
+
+    // Get configuration from central config using helpers
+    const publicClient = getPublicClient(network);
+    const tokenAddress = getTokenAddress(network, asset);
+    const tokenConfig = getTokenConfig(asset);
+
     // Parse payment header (supports multiple formats)
     const auth = parsePaymentHeader(request.paymentHeader);
     const payerAddress = auth.from as Address;
-    const tokenAddress = TOKEN_ADDRESSES[network];
-    const tokenInfo = TOKEN_INFO[network];
 
-    if (!tokenAddress || !tokenInfo) {
-      return {
-        isValid: false,
-        invalidReason: `Token not available on ${network}`,
-      };
-    }
-
-    // 1. Get token decimals
-    const decimals = await publicClient.readContract({
-      address: tokenAddress,
-      abi: TOKEN_ABI,
-      functionName: 'decimals',
-    }) as number;
+    // 1. Get token decimals from config (faster than RPC)
+    const decimals = tokenConfig.decimals;
 
     // 2. maxAmountRequired is already in base units (wei), no need to parse
     const amount = BigInt(request.paymentRequirements.maxAmountRequired);
 
     // 3. Check time validity (validAfter / validBefore)
     const now = Math.floor(Date.now() / 1000);
-    
+
     if (auth.validAfter) {
       const validAfter = typeof auth.validAfter === 'string' ? parseInt(auth.validAfter) : auth.validAfter;
       if (now < validAfter) {
@@ -292,7 +218,7 @@ export async function verifyPaymentManaged(
         };
       }
     }
-    
+
     if (auth.validBefore) {
       const validBefore = typeof auth.validBefore === 'string' ? parseInt(auth.validBefore) : auth.validBefore;
       if (now > validBefore) {
@@ -306,7 +232,7 @@ export async function verifyPaymentManaged(
 
     // 4. Check payer has enough token balance
     const balance = await publicClient.readContract({
-      address: tokenAddress,
+      address: tokenAddress as Address,
       abi: TOKEN_ABI,
       functionName: 'balanceOf',
       args: [payerAddress],
@@ -315,18 +241,18 @@ export async function verifyPaymentManaged(
     if (balance < amount) {
       return {
         isValid: false,
-        invalidReason: `Insufficient ${tokenInfo.symbol} balance. Required: ${formatUnits(amount, decimals)} ${tokenInfo.symbol}, Available: ${formatUnits(balance, decimals)} ${tokenInfo.symbol}`,
+        invalidReason: `Insufficient ${asset} balance. Required: ${formatUnits(amount, decimals)} ${asset}, Available: ${formatUnits(balance, decimals)} ${asset}`,
         decimals,
       };
     }
 
     // 5. Check authorization based on token type
-    if (tokenInfo.supportsEIP3009) {
+    if (tokenConfig.supportsEIP3009) {
       // EIP-3009: Check if nonce has been used (replay protection)
       const nonceBytes32 = auth.nonce.startsWith('0x') ? auth.nonce : `0x${auth.nonce}`;
-      
+
       const authUsed = await publicClient.readContract({
-        address: tokenAddress,
+        address: tokenAddress as Address,
         abi: TOKEN_ABI,
         functionName: 'authorizationState',
         args: [payerAddress, nonceBytes32],
@@ -339,15 +265,18 @@ export async function verifyPaymentManaged(
           decimals,
         };
       }
-      
+
       // ✅ NO ALLOWANCE CHECK NEEDED with EIP-3009!
       // The signature IS the authorization
     } else {
       // Standard ERC-20: Check allowance (relayer pattern)
-      const facilitatorAddress = privateKeyToAccount(process.env.FACILITATOR_PRIVATE_KEY! as `0x${string}`).address;
-      
+      if (!process.env.FACILITATOR_PRIVATE_KEY) {
+        throw new Error('FACILITATOR_PRIVATE_KEY not configured for relayer check');
+      }
+      const facilitatorAddress = privateKeyToAccount(process.env.FACILITATOR_PRIVATE_KEY as `0x${string}`).address;
+
       const allowance = await publicClient.readContract({
-        address: tokenAddress,
+        address: tokenAddress as Address,
         abi: TOKEN_ABI,
         functionName: 'allowance',
         args: [payerAddress, facilitatorAddress],
@@ -356,7 +285,7 @@ export async function verifyPaymentManaged(
       if (allowance < amount) {
         return {
           isValid: false,
-          invalidReason: `Insufficient allowance. User must approve facilitator (${facilitatorAddress}) for ${formatUnits(amount, decimals)} ${tokenInfo.symbol}. Current allowance: ${formatUnits(allowance, decimals)} ${tokenInfo.symbol}`,
+          invalidReason: `Insufficient allowance. User must approve facilitator (${facilitatorAddress}) for ${formatUnits(amount, decimals)} ${asset}. Current allowance: ${formatUnits(allowance, decimals)} ${asset}`,
           decimals,
         };
       }
@@ -394,23 +323,16 @@ export async function settlePaymentManaged(
   status: 'pending' | 'confirmed' | 'partial_settlement' | 'failed';
   confirmations: number;
 }> {
-  const { network } = request.paymentRequirements;
-  const chainConfig = CHAIN_CONFIG[network as keyof typeof CHAIN_CONFIG];
-  const tokenInfo = TOKEN_INFO[network];
+  const { network, asset } = request.paymentRequirements;
 
-  if (!chainConfig) {
-    throw new Error(`Unsupported network: ${network}`);
-  }
-
-  if (!tokenInfo) {
-    throw new Error(`Token not configured for ${network}`);
-  }
+  // Use config to decide settlement method
+  const tokenConfig = getTokenConfig(asset);
 
   // Route to appropriate settlement method
-  if (tokenInfo.supportsEIP3009) {
-    return settleWithEIP3009(request, feeAmount, netAmount, chainConfig);
+  if (tokenConfig.supportsEIP3009) {
+    return settleWithEIP3009(request, feeAmount, netAmount);
   } else {
-    return settleWithRelayer(request, feeAmount, netAmount, chainConfig);
+    return settleWithRelayer(request, feeAmount, netAmount);
   }
 }
 
@@ -423,47 +345,36 @@ export async function settlePaymentManaged(
 async function settleWithEIP3009(
   request: SettleRequest,
   feeAmount: bigint,
-  netAmount: bigint,
-  chainConfig: typeof CHAIN_CONFIG[keyof typeof CHAIN_CONFIG]
+  netAmount: bigint
 ): Promise<{
   txHash: Hash;
   txHashFee?: Hash;
   status: 'pending' | 'confirmed' | 'partial_settlement' | 'failed';
   confirmations: number;
 }> {
-  const { network } = request.paymentRequirements;
-  const account = privateKeyToAccount(process.env.FACILITATOR_PRIVATE_KEY! as `0x${string}`);
-  const walletClient = createWalletClient({
-    account,
-    chain: chainConfig.chain,
-    transport: http(chainConfig.rpcUrl, { retryCount: 3, retryDelay: 1000 }),
-  });
+  const { network, asset } = request.paymentRequirements;
 
-  const publicClient = createPublicClient({
-    chain: chainConfig.chain,
-    transport: http(chainConfig.rpcUrl),
-  });
+  // Get clients and config from central registry
+  const walletClient = getWalletClient(network);
+  const publicClient = getPublicClient(network);
+  const tokenAddress = getTokenAddress(network, asset);
+  const requiredConfirmations = getConfirmations(network);
 
   try {
     // Parse payment header (supports multiple formats)
     const auth = parsePaymentHeader(request.paymentHeader);
     const payerAddress = auth.from as Address;
     const merchantAddress = request.paymentRequirements.payTo as Address;
-    const tokenAddress = TOKEN_ADDRESSES[network];
-
-    if (!tokenAddress) {
-      throw new Error(`Token not configured for ${network}`);
-    }
 
     // Extract or parse signature components
-    const { v, r, s } = auth.v && auth.r && auth.s 
+    const { v, r, s } = auth.v && auth.r && auth.s
       ? { v: auth.v, r: auth.r, s: auth.s }
       : splitSignature(auth.signature || auth);
 
     // Prepare EIP-3009 parameters
     const validAfter = auth.validAfter ? BigInt(auth.validAfter) : 0n;
-    const validBefore = auth.validBefore 
-      ? BigInt(auth.validBefore) 
+    const validBefore = auth.validBefore
+      ? BigInt(auth.validBefore)
       : BigInt(Math.floor(Date.now() / 1000) + 3600); // 1 hour default
     // Use nonce as-is (already bytes32 hex string)
     const nonceBytes32 = auth.nonce.startsWith('0x') ? auth.nonce : `0x${auth.nonce}`;
@@ -475,7 +386,7 @@ async function settleWithEIP3009(
 
     // Transfer using EIP-3009 transferWithAuthorization
     const hashMerchant = await walletClient.writeContract({
-      address: tokenAddress,
+      address: tokenAddress as Address,
       abi: TOKEN_ABI,
       functionName: 'transferWithAuthorization',
       args: [
@@ -499,14 +410,14 @@ async function settleWithEIP3009(
     // Wait for confirmation
     const receipt = await publicClient.waitForTransactionReceipt({
       hash: hashMerchant,
-      confirmations: chainConfig.confirmations,
+      confirmations: requiredConfirmations,
     });
 
     return {
       txHash: hashMerchant,
       txHashFee: hashFee,
       status: receipt.status === 'success' ? 'confirmed' : 'failed',
-      confirmations: chainConfig.confirmations,
+      confirmations: requiredConfirmations,
     };
   } catch (error) {
     throw new Error(`EIP-3009 settlement failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -522,26 +433,20 @@ async function settleWithEIP3009(
 async function settleWithRelayer(
   request: SettleRequest,
   feeAmount: bigint,
-  netAmount: bigint,
-  chainConfig: typeof CHAIN_CONFIG[keyof typeof CHAIN_CONFIG]
+  netAmount: bigint
 ): Promise<{
   txHash: Hash;
   txHashFee?: Hash;
   status: 'pending' | 'confirmed' | 'partial_settlement' | 'failed';
   confirmations: number;
 }> {
-  const { network } = request.paymentRequirements;
-  const account = privateKeyToAccount(process.env.FACILITATOR_PRIVATE_KEY! as `0x${string}`);
-  const walletClient = createWalletClient({
-    account,
-    chain: chainConfig.chain,
-    transport: http(chainConfig.rpcUrl, { retryCount: 3, retryDelay: 1000 }),
-  });
+  const { network, asset } = request.paymentRequirements;
 
-  const publicClient = createPublicClient({
-    chain: chainConfig.chain,
-    transport: http(chainConfig.rpcUrl),
-  });
+  // Get clients and config from central registry
+  const walletClient = getWalletClient(network);
+  const publicClient = getPublicClient(network);
+  const tokenAddress = getTokenAddress(network, asset);
+  const requiredConfirmations = getConfirmations(network);
 
   try {
     // Parse payment header
@@ -549,15 +454,10 @@ async function settleWithRelayer(
     const payerAddress = auth.from as Address;
     const merchantAddress = request.paymentRequirements.payTo as Address;
     const treasuryAddress = process.env.TREASURY_ADDRESS! as Address;
-    const tokenAddress = TOKEN_ADDRESSES[network];
-
-    if (!tokenAddress) {
-      throw new Error(`Token not configured for ${network}`);
-    }
 
     // Execute transfer to merchant using transferFrom
     const hashMerchant = await walletClient.writeContract({
-      address: tokenAddress,
+      address: tokenAddress as Address,
       abi: TOKEN_ABI,
       functionName: 'transferFrom',
       args: [payerAddress, merchantAddress, netAmount],
@@ -565,7 +465,7 @@ async function settleWithRelayer(
 
     // Execute fee transfer to treasury
     const hashFee = await walletClient.writeContract({
-      address: tokenAddress,
+      address: tokenAddress as Address,
       abi: TOKEN_ABI,
       functionName: 'transferFrom',
       args: [payerAddress, treasuryAddress, feeAmount],
@@ -575,11 +475,11 @@ async function settleWithRelayer(
     const [receiptMerchant, receiptFee] = await Promise.all([
       publicClient.waitForTransactionReceipt({
         hash: hashMerchant,
-        confirmations: chainConfig.confirmations,
+        confirmations: requiredConfirmations,
       }),
       publicClient.waitForTransactionReceipt({
         hash: hashFee,
-        confirmations: chainConfig.confirmations,
+        confirmations: requiredConfirmations,
       }),
     ]);
 
@@ -589,7 +489,7 @@ async function settleWithRelayer(
         txHash: hashMerchant,
         txHashFee: hashFee,
         status: 'partial_settlement',
-        confirmations: chainConfig.confirmations,
+        confirmations: requiredConfirmations,
       };
     }
 
@@ -597,7 +497,7 @@ async function settleWithRelayer(
       txHash: hashMerchant,
       txHashFee: hashFee,
       status: 'confirmed',
-      confirmations: chainConfig.confirmations,
+      confirmations: requiredConfirmations,
     };
   } catch (error) {
     throw new Error(`Relayer settlement failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -616,11 +516,8 @@ export async function checkTransactionFinality(
   network: string,
   requiredConfirmations: number
 ): Promise<{ confirmed: boolean; confirmations: number; status: 'success' | 'reverted' }> {
-  const chainConfig = CHAIN_CONFIG[network as keyof typeof CHAIN_CONFIG];
-  const publicClient = createPublicClient({
-    chain: chainConfig.chain,
-    transport: http(chainConfig.rpcUrl),
-  });
+  // Use public client from factory
+  const publicClient = getPublicClient(network);
 
   const receipt = await publicClient.getTransactionReceipt({ hash: txHash });
   const currentBlock = await publicClient.getBlockNumber();

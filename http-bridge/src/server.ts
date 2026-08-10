@@ -1,3 +1,5 @@
+import { createRequire } from 'module';
+const require = createRequire(import.meta.url);
 import Fastify from "fastify";
 import cors from "@fastify/cors";
 import fastifyStatic from "@fastify/static";
@@ -22,6 +24,7 @@ import { rateLimitMiddleware } from './middleware/rateLimit';
 import { linkAgentIdentity } from './chaoschain/identity';
 import { checkHealth } from './monitoring/health';
 import { startConfirmer } from './jobs/confirmer';
+import { getSupportedNetworks, getChainId } from './config/chains';
 
 // Load environment variables
 dotenvConfig();
@@ -90,7 +93,7 @@ function simulateVerify(request: VerifyRequest): VerifyResponse {
   const timestamp = Date.now();
   const proofData = `${request.paymentRequirements.payTo}${timestamp}`;
   const proofHash = `0x${Buffer.from(proofData).toString('hex').slice(0, 64)}`;
-  
+
   return {
     isValid: true,
     invalidReason: null,
@@ -109,15 +112,13 @@ function simulateSettle(request: SettleRequest): SettleResponse {
   server.log.info(`[SETTLE] Asset: ${request.paymentRequirements.asset}`);
   server.log.info(`[SETTLE] PayTo: ${request.paymentRequirements.payTo}`);
 
-  // Map network names to chain IDs
-  const chainIdMap: Record<string, number> = {
-    "base-sepolia": 84532,
-    "ethereum-sepolia": 11155111,
-    "base-mainnet": 8453,
-    "ethereum-mainnet": 1,
-  };
-
-  const chainId = chainIdMap[request.paymentRequirements.network] || 84532;
+  // Get chain ID dynamically from config
+  let chainId = 84532; // Default
+  try {
+    chainId = getChainId(request.paymentRequirements.network);
+  } catch (e) {
+    server.log.warn(`Unknown network for simulation: ${request.paymentRequirements.network}, using default chainId`);
+  }
 
   // Generate realistic-looking transaction hash
   const timestamp = Date.now();
@@ -125,7 +126,7 @@ function simulateSettle(request: SettleRequest): SettleResponse {
   const txHash = `0x${Buffer.from(txData).toString('hex').slice(0, 64)}`;
   const proofData = `${txData}consensus`;
   const proofHash = `0x${Buffer.from(proofData).toString('hex').slice(0, 64)}`;
-  
+
   return {
     success: true,
     error: null,
@@ -197,18 +198,18 @@ server.get("/api/info", async () => {
     },
     docs: "https://github.com/ChaosChain/chaoschain-x402",
   };
-  
+
   // Only show CRE mode if we're in decentralized mode
   if (config.mode === 'decentralized') {
     info.creMode = config.creMode;
   }
-  
+
   // Show what we're actually doing
   if (config.mode === 'managed') {
     info.settlement = 'Production-ready on-chain settlement';
     info.network = config.defaultChain;
   }
-  
+
   return info;
 });
 
@@ -227,40 +228,16 @@ server.get("/health", async (request, reply) => {
  * Per x402 facilitator spec
  */
 server.get("/supported", async () => {
-  return {
-    kinds: [
-      {
-        x402Version: 1,
-        scheme: "exact",
-        network: "base-sepolia",
-      },
-      {
-        x402Version: 1,
-        scheme: "exact",
-        network: "ethereum-sepolia",
-      },
-      {
-        x402Version: 1,
-        scheme: "exact",
-        network: "base-mainnet",
-      },
-      {
-        x402Version: 1,
-        scheme: "exact",
-        network: "ethereum-mainnet",
-      },
-      {
-        x402Version: 1,
-        scheme: "exact",
-        network: "0g-mainnet",
-      },
-      {
-        x402Version: 1,
-        scheme: "exact",
-        network: "skale-base-sepolia",
-      },
-    ],
-  };
+  // Dynamically generate supported kinds based on available networks
+  const networks = getSupportedNetworks();
+
+  const kinds = networks.map(network => ({
+    x402Version: 1,
+    scheme: "exact",
+    network: network,
+  }));
+
+  return { kinds };
 });
 
 /**
@@ -302,7 +279,7 @@ server.post<{ Body: VerifyRequest; Reply: VerifyResponse | ErrorResponse }>(
       // Create stable timestamp for this request (for idempotency consistency)
       const stableTimestamp = Date.now();
       const requestId = `req_${stableTimestamp}_${Math.random().toString(36).slice(2, 9)}`;
-      
+
       server.log.info(`[VERIFY] Processing verification request`);
       server.log.info(`[VERIFY] Mode: ${config.mode}`);
 
@@ -316,11 +293,11 @@ server.post<{ Body: VerifyRequest; Reply: VerifyResponse | ErrorResponse }>(
       if (config.mode === 'managed') {
         // MANAGED MODE: Real on-chain verification
         const verification = await verifyPaymentManaged(validatedRequest);
-        
+
         response = {
           isValid: verification.isValid,
           invalidReason: verification.invalidReason,
-          consensusProof: verification.isValid 
+          consensusProof: verification.isValid
             ? `0x${Buffer.from(requestId).toString('hex').padEnd(64, '0')}`
             : null,
           reportId: requestId,
@@ -335,7 +312,7 @@ server.post<{ Body: VerifyRequest; Reply: VerifyResponse | ErrorResponse }>(
         const baseResponse = config.creMode === "simulate"
           ? simulateVerify(validatedRequest)
           : await forwardVerifyToCRE(validatedRequest);
-        
+
         // Add fee breakdown to CRE response
         response = {
           ...baseResponse,
@@ -427,7 +404,7 @@ server.post<{ Body: SettleRequest; Reply: SettleResponse | ErrorResponse }>(
 
       if (config.mode === 'managed') {
         // MANAGED MODE: Real on-chain settlement with EIP-3009 transferWithAuthorization
-        
+
         // First verify
         const verification = await verifyPaymentManaged(validatedRequest);
         if (!verification.isValid) {
@@ -458,7 +435,7 @@ server.post<{ Body: SettleRequest; Reply: SettleResponse | ErrorResponse }>(
           // Link to ChaosChain identity if agentId provided
           let evidenceHash: string | undefined;
           let proofOfAgency: string | undefined;
-          
+
           const agentId = (validatedRequest as any).agentId;
           if (agentId && config.chaoschainEnabled) {
             const identity = await linkAgentIdentity({
@@ -468,7 +445,7 @@ server.post<{ Body: SettleRequest; Reply: SettleResponse | ErrorResponse }>(
               amount,
               paymentData: validatedRequest,
             });
-            
+
             if (identity) {
               evidenceHash = identity.evidenceHash;
               proofOfAgency = identity.proofOfAgency;
@@ -498,7 +475,7 @@ server.post<{ Body: SettleRequest; Reply: SettleResponse | ErrorResponse }>(
         const baseResponse = config.creMode === "simulate"
           ? simulateSettle(validatedRequest)
           : await forwardSettleToCRE(validatedRequest);
-        
+
         // Add fee breakdown and stable timestamp to CRE response
         response = {
           ...baseResponse,
@@ -545,26 +522,26 @@ const start = async () => {
       origin: true, // Allow all origins in development
       methods: ["GET", "POST", "OPTIONS"],
     });
-    
+
     // Register static file serving for the public directory
     // Use path relative to current working directory for simplicity
     const publicPath = path.join(process.cwd(), 'dist', 'public');
-    
+
     server.log.info(`Serving static files from: ${publicPath}`);
-    
+
     await server.register(fastifyStatic, {
       root: publicPath,
       prefix: '/', // Serve from root
     });
-    
+
     await server.listen({ port: config.port, host: "0.0.0.0" });
-    
+
     // Start background finality confirmer if in managed mode
     if (config.mode === 'managed') {
       startConfirmer();
       server.log.info('Background finality confirmer started');
     }
-    
+
     console.log("");
     console.log("╔═══════════════════════════════════════════════════════════╗");
     console.log("║   ChaosChain x402 Payment Facilitator                    ║");
@@ -604,4 +581,3 @@ start().catch((err) => {
   console.error('Failed to start server:', err);
   process.exit(1);
 });
-
